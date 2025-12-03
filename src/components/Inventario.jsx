@@ -2,13 +2,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore'
 import Scanner from './Scanner'
 
-function Inventario() {
+function Inventario({ userRole }) {
   const [inventario, setInventario] = useState([])
   const [newItem, setNewItem] = useState({ id: '', nombre: '', stock: '', precioUnitario: '' })
   const [editingId, setEditingId] = useState(null)
   const [showScanner, setShowScanner] = useState(false)
 
   const db = getFirestore()
+
+  // Permisos basados en roles
+  const canEdit = userRole === 'admin' || userRole === 'employee'
+  const canDelete = userRole === 'admin'
+  const canAdd = userRole === 'admin' || userRole === 'employee'
 
   const fetchInventario = useCallback(async () => {
     const querySnapshot = await getDocs(collection(db, 'inventario'))
@@ -27,6 +32,10 @@ function Inventario() {
   }
 
   const handleAddItem = async () => {
+    if (!canAdd) {
+      alert('No tienes permisos para agregar productos')
+      return
+    }
     if (!newItem.id || !newItem.nombre || !newItem.stock || !newItem.precioUnitario) return
     try {
       await addDoc(collection(db, 'inventario'), newItem)
@@ -38,11 +47,19 @@ function Inventario() {
   }
 
   const handleEditItem = (item) => {
+    if (!canEdit) {
+      alert('No tienes permisos para editar productos')
+      return
+    }
     setNewItem(item)
     setEditingId(item.docId)
   }
 
   const handleUpdateItem = async () => {
+    if (!canEdit) {
+      alert('No tienes permisos para editar productos')
+      return
+    }
     if (!editingId) return
     try {
       await updateDoc(doc(db, 'inventario', editingId), {
@@ -61,6 +78,10 @@ function Inventario() {
   }
 
   const handleDeleteItem = async (docId) => {
+    if (!canDelete) {
+      alert('No tienes permisos para eliminar productos')
+      return
+    }
     try {
       await deleteDoc(doc(db, 'inventario', docId))
       fetchInventario()
@@ -73,52 +94,59 @@ function Inventario() {
   return (
     <div>
       <h2>Inventario</h2>
-      <button onClick={() => setShowScanner(!showScanner)}>
-        {showScanner ? 'Desactivar Escáner' : 'Activar Escáner'}
-      </button>
-      {showScanner && <Scanner onScan={handleScan} />}
-      <div className="form-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px', margin: '0 auto' }}>
-        <input
-          type="text"
-          placeholder="ID (escanea el código)"
-          value={newItem.id}
-          onChange={(e) => setNewItem({ ...newItem, id: e.target.value })}
-          style={{ width: '100%', boxSizing: 'border-box' }}
-        />
-        <input
-          type="text"
-          placeholder="Nombre"
-          value={newItem.nombre}
-          onChange={(e) => setNewItem({ ...newItem, nombre: e.target.value })}
-          style={{ width: '100%', boxSizing: 'border-box' }}
-        />
-        <input
-          type="number"
-          placeholder="Stock"
-          value={newItem.stock}
-          onChange={(e) => setNewItem({ ...newItem, stock: e.target.value })}
-          style={{ width: '100%', boxSizing: 'border-box' }}
-        />
-        <input
-          type="number"
-          placeholder="Precio Unitario"
-          value={newItem.precioUnitario}
-          onChange={(e) => setNewItem({ ...newItem, precioUnitario: e.target.value })}
-          style={{ width: '100%', boxSizing: 'border-box' }}
-        />
-        {editingId ? (
-          <button onClick={handleUpdateItem} style={{ width: '100%' }}>Actualizar</button>
-        ) : (
-          <button onClick={handleAddItem} style={{ width: '100%' }}>Agregar</button>
-        )}
-      </div>
+      
+      {/* Información de permisos removida: la vista ya no muestra datos del usuario */}
+
+      {canAdd && (
+        <>
+          <button onClick={() => setShowScanner(!showScanner)}>
+            {showScanner ? 'Desactivar Escáner' : 'Activar Escáner'}
+          </button>
+          {showScanner && <Scanner onScan={handleScan} />}
+          <div className="form-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px', margin: '0 auto' }}>
+            <input
+              type="text"
+              placeholder="ID (escanea el código)"
+              value={newItem.id}
+              onChange={(e) => setNewItem({ ...newItem, id: e.target.value })}
+              style={{ width: '100%', boxSizing: 'border-box' }}
+            />
+            <input
+              type="text"
+              placeholder="Nombre"
+              value={newItem.nombre}
+              onChange={(e) => setNewItem({ ...newItem, nombre: e.target.value })}
+              style={{ width: '100%', boxSizing: 'border-box' }}
+            />
+            <input
+              type="number"
+              placeholder="Stock"
+              value={newItem.stock}
+              onChange={(e) => setNewItem({ ...newItem, stock: e.target.value })}
+              style={{ width: '100%', boxSizing: 'border-box' }}
+            />
+            <input
+              type="number"
+              placeholder="Precio Unitario"
+              value={newItem.precioUnitario}
+              onChange={(e) => setNewItem({ ...newItem, precioUnitario: e.target.value })}
+              style={{ width: '100%', boxSizing: 'border-box' }}
+            />
+            {editingId ? (
+              <button onClick={handleUpdateItem} style={{ width: '100%' }}>Actualizar</button>
+            ) : (
+              <button onClick={handleAddItem} style={{ width: '100%' }}>Agregar</button>
+            )}
+          </div>
+        </>
+      )}
       
       <ul>
         {inventario.map(item => (
           <li key={item.docId}>
             ID: {item.id} - {item.nombre} - Stock: {item.stock} - Precio: ${item.precioUnitario}
-            <button onClick={() => handleEditItem(item)}>Editar</button>
-            <button onClick={() => handleDeleteItem(item.docId)}>Eliminar</button>
+            {canEdit && <button onClick={() => handleEditItem(item)}>Editar</button>}
+            {canDelete && <button onClick={() => handleDeleteItem(item.docId)}>Eliminar</button>}
           </li>
         ))}
       </ul>
