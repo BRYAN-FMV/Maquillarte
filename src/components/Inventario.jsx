@@ -12,7 +12,7 @@ function Inventario() {
 
   const fetchInventario = useCallback(async () => {
     const querySnapshot = await getDocs(collection(db, 'inventario'))
-    const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    const items = querySnapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }))
     setInventario(items)
   }, [db])
 
@@ -28,27 +28,46 @@ function Inventario() {
 
   const handleAddItem = async () => {
     if (!newItem.id || !newItem.nombre || !newItem.stock || !newItem.precioUnitario) return
-    await addDoc(collection(db, 'inventario'), newItem)
-    setNewItem({ id: '', nombre: '', stock: '', precioUnitario: '' })
-    fetchInventario()
+    try {
+      await addDoc(collection(db, 'inventario'), newItem)
+      setNewItem({ id: '', nombre: '', stock: '', precioUnitario: '' })
+      fetchInventario()
+    } catch (error) {
+      console.error('Error adding item:', error)
+    }
   }
 
   const handleEditItem = (item) => {
     setNewItem(item)
-    setEditingId(item.id)
+    setEditingId(item.docId)
   }
 
   const handleUpdateItem = async () => {
     if (!editingId) return
-    await updateDoc(doc(db, 'inventario', editingId), newItem)
-    setNewItem({ id: '', nombre: '', stock: '', precioUnitario: '' })
-    setEditingId(null)
-    fetchInventario()
+    try {
+      await updateDoc(doc(db, 'inventario', editingId), {
+        id: newItem.id,
+        nombre: newItem.nombre,
+        stock: newItem.stock,
+        precioUnitario: newItem.precioUnitario
+      })
+      setNewItem({ id: '', nombre: '', stock: '', precioUnitario: '' })
+      setEditingId(null)
+      fetchInventario()
+    } catch (error) {
+      console.error('Error updating item:', error)
+      alert('Error al actualizar: ' + error.message)
+    }
   }
 
-  const handleDeleteItem = async (id) => {
-    await deleteDoc(doc(db, 'inventario', id))
-    fetchInventario()
+  const handleDeleteItem = async (docId) => {
+    try {
+      await deleteDoc(doc(db, 'inventario', docId))
+      fetchInventario()
+    } catch (error) {
+      console.error('Error deleting item:', error)
+      alert('Error al eliminar: ' + error.message)
+    }
   }
 
   return (
@@ -58,44 +77,48 @@ function Inventario() {
         {showScanner ? 'Desactivar Escáner' : 'Activar Escáner'}
       </button>
       {showScanner && <Scanner onScan={handleScan} />}
-      <div>
+      <div className="form-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px', margin: '0 auto' }}>
         <input
           type="text"
           placeholder="ID (escanea el código)"
           value={newItem.id}
           onChange={(e) => setNewItem({ ...newItem, id: e.target.value })}
+          style={{ width: '100%', boxSizing: 'border-box' }}
         />
         <input
           type="text"
           placeholder="Nombre"
           value={newItem.nombre}
           onChange={(e) => setNewItem({ ...newItem, nombre: e.target.value })}
+          style={{ width: '100%', boxSizing: 'border-box' }}
         />
         <input
           type="number"
           placeholder="Stock"
           value={newItem.stock}
           onChange={(e) => setNewItem({ ...newItem, stock: e.target.value })}
+          style={{ width: '100%', boxSizing: 'border-box' }}
         />
         <input
           type="number"
           placeholder="Precio Unitario"
           value={newItem.precioUnitario}
           onChange={(e) => setNewItem({ ...newItem, precioUnitario: e.target.value })}
+          style={{ width: '100%', boxSizing: 'border-box' }}
         />
         {editingId ? (
-          <button onClick={handleUpdateItem}>Actualizar</button>
+          <button onClick={handleUpdateItem} style={{ width: '100%' }}>Actualizar</button>
         ) : (
-          <button onClick={handleAddItem}>Agregar</button>
+          <button onClick={handleAddItem} style={{ width: '100%' }}>Agregar</button>
         )}
       </div>
       
       <ul>
         {inventario.map(item => (
-          <li key={item.id}>
+          <li key={item.docId}>
             ID: {item.id} - {item.nombre} - Stock: {item.stock} - Precio: ${item.precioUnitario}
             <button onClick={() => handleEditItem(item)}>Editar</button>
-            <button onClick={() => handleDeleteItem(item.id)}>Eliminar</button>
+            <button onClick={() => handleDeleteItem(item.docId)}>Eliminar</button>
           </li>
         ))}
       </ul>
