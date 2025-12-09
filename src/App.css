@@ -1,17 +1,41 @@
+/* Global reset for full width usage */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
   background-color: #FFF0F5;
   min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 body {
+  width: 100vw;
+  height: 100vh;
   margin: 0;
-  font-family: 'Arial', sans-serif;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   background-color: #FFF0F5;
   color: #333;
+  overflow: hidden;
 }
 
 h1, h2 {
@@ -26,17 +50,31 @@ button {
   border-radius: 5px;
   cursor: pointer;
   margin: 5px;
+  transition: background-color 0.3s ease;
 }
 
 button:hover {
   background-color: #FF69B4;
 }
 
-input {
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+input, select {
   padding: 10px;
-  margin: 5px;
-  border: 1px solid #FFB6C1;
+  margin: 5px 0;
+  border: 2px solid #FFB6C1;
   border-radius: 5px;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: #FF69B4;
+  box-shadow: 0 0 5px rgba(255, 182, 193, 0.5);
 }
 
 ul {
@@ -54,7 +92,7 @@ li {
 /* Responsive Design */
 @media (max-width: 768px) {
   #root {
-    padding: 0.5rem;
+    padding: 0;
   }
   
   /* Sidebar responsive */
@@ -65,8 +103,8 @@ li {
   
   .main-content {
     margin-left: 0 !important;
-    padding: 15px;
-    width: 100%;
+    padding: 10px !important;
+    width: 100% !important;
     box-sizing: border-box;
   }
   
@@ -125,4 +163,123 @@ li {
     padding: 8px;
     font-size: 14px;
   }
+}
+
+.main-content {
+  transition: margin-left 0.3s ease;
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 20px;
+}
+
+/* Additional responsive adjustments */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0 !important;
+    padding: 10px !important;
+    width: 100% !important;
+  }
+  
+  button {
+    min-height: 44px; /* Better touch targets */
+  }
+  
+  table {
+    font-size: 14px;
+    overflow-x: auto;
+    width: 100%;
+  }
+  
+  .form-container {
+    max-width: 100% !important;
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Inventory cards responsive */
+  .inventory-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 5px !important;
+  }
+  
+  table {
+    font-size: 12px;
+  }
+  
+  .form-container {
+    padding: 15px !important;
+  }
+}
+
+/* Full width component containers */
+.component-container {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  min-height: calc(100vh - 40px) !important;
+}
+
+/* Sales view full width */
+.sales-container {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  min-height: 100vh !important;
+}
+
+.sales-filters {
+  width: 100% !important;
+  max-width: none !important;
+  background: #f5f5f5 !important;
+  padding: 15px !important;
+  border-radius: 8px !important;
+  margin-bottom: 20px !important;
+  box-sizing: border-box !important;
+}
+
+/* Scanner full width */
+.scanner-wrapper {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+}
+
+/* Inventory full width */
+.inventory-container {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+  min-height: 100vh !important;
+}
+
+.inventory-grid {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: 20px !important;
+  margin-top: 20px !important;
+}
+
+/* Form containers full width */
+.form-container {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
 }
