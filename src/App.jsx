@@ -5,6 +5,7 @@ import Scanner from './components/Scanner'
 import Auth from './components/Auth'
 import UserProfile from './components/UserProfile'
 import UserManagement from './components/UserManagement'
+import SalesView from './components/SalesView'
 import { onAuthChange } from './services/authService'
 import './App.css'
 
@@ -81,12 +82,25 @@ function App() {
       case 'scanner':
         // Solo admin y employee pueden acceder al scanner
         if (role === 'admin' || role === 'employee') {
-          return <Scanner onScan={(data) => console.log('Escaneado:', data)} />
+          // Renderizamos Scanner en modo ventas (sin onScan)
+          return <Scanner role={role} user={user} />
         } else {
           return (
             <div style={{ padding: '20px', textAlign: 'center' }}>
               <h2>Acceso Denegado</h2>
               <p>No tienes permisos para acceder al escáner.</p>
+            </div>
+          )
+        }
+      case 'sales':
+        // Solo admin y employee pueden ver ventas
+        if (role === 'admin' || role === 'employee') {
+          return <SalesView userRole={role} onNavigate={setView} user={user} />
+        } else {
+          return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <h2>Acceso Denegado</h2>
+              <p>No tienes permisos para acceder a las ventas.</p>
             </div>
           )
         }
@@ -129,10 +143,32 @@ function App() {
 
   // Usuario autenticado, mostrar aplicación
   return (
-    <div style={{ display: 'flex' }}>
+    <div style={{ 
+      display: 'flex', 
+      width: '100vw',
+      height: '100vh', 
+      overflow: 'hidden',
+      margin: 0,
+      padding: 0
+    }}>
       <Sidebar setView={setView} user={user} role={role} onLogout={handleLogout} />
-      <div className="main-content" style={{ flex: 1, padding: '20px', marginLeft: '0px', transition: 'margin-left 0.3s ease' }}>
-        {renderView()}
+      <div className="main-content" style={{ 
+        flex: 1, 
+        width: '100%',
+        height: '100vh',
+        overflow: 'auto',
+        margin: 0,
+        padding: 0,
+        boxSizing: 'border-box'
+      }}>
+        <div style={{
+          width: '100%',
+          minHeight: '100%',
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}>
+          {renderView()}
+        </div>
       </div>
     </div>
   )
