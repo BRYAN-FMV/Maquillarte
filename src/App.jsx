@@ -6,6 +6,7 @@ import Auth from './components/Auth'
 import UserProfile from './components/UserProfile'
 import UserManagement from './components/UserManagement'
 import SalesView from './components/SalesView'
+import Reports from './components/Reports'
 import { onAuthChange } from './services/authService'
 import './App.css'
 
@@ -101,6 +102,18 @@ function App() {
             <div style={{ padding: '20px', textAlign: 'center' }}>
               <h2>Acceso Denegado</h2>
               <p>No tienes permisos para acceder a las ventas.</p>
+            </div>
+          )
+        }
+      case 'reports':
+        // Solo admin y employee pueden ver reportes
+        if (role === 'admin' || role === 'employee') {
+          return <Reports />
+        } else {
+          return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <h2>Acceso Denegado</h2>
+              <p>No tienes permisos para acceder a los reportes.</p>
             </div>
           )
         }
