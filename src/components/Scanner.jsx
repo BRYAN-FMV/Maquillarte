@@ -71,31 +71,24 @@ function Scanner({ onScan, role, user }) {
   }
 
   const addToCart = (product) => {
-    console.log('Adding to cart:', product)
     setCartItems(prev => {
-      console.log('Current cart before adding:', prev)
       // Check if product already exists in cart
       const existingIndex = prev.findIndex(item => item.docId === product.docId)
       if (existingIndex >= 0) {
         // Increment quantity if product already in cart
         const updated = [...prev]
         const currentQty = Number(updated[existingIndex].cantidad || 0)
-        console.log('Product exists, current quantity:', currentQty)
         const maxStock = Number(product.stock || 0)
         if (currentQty < maxStock) {
           updated[existingIndex].cantidad = currentQty + 1
-          console.log('New quantity:', updated[existingIndex].cantidad)
         } else {
           alert(`No se puede agregar más. Stock máximo: ${maxStock}`)
         }
-        console.log('Updated cart:', updated)
         return updated
       } else {
         // Add new product to cart with quantity 1
         const newCartItem = { ...product, cantidad: 1 }
-        console.log('New product added:', newCartItem)
         const newCart = [...prev, newCartItem]
-        console.log('New cart:', newCart)
         return newCart
       }
     })

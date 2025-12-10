@@ -1,4 +1,4 @@
-import { FaHome, FaList, FaBarcode, FaTimes, FaBars, FaUsers, FaSignOutAlt, FaUser, FaChartBar } from 'react-icons/fa'
+import { FaHome, FaList, FaBarcode, FaTimes, FaBars, FaUsers, FaSignOutAlt, FaUser, FaChartBar, FaFileAlt } from 'react-icons/fa'
 import { useState, useEffect } from 'react'
 
 function Sidebar({ setView, user, role, onLogout }) {
@@ -56,17 +56,11 @@ function Sidebar({ setView, user, role, onLogout }) {
 
     updateScrollbarStyle();
 
-    // Actualizar estilo cada vez que se cambia la visibilidad
-    const observer = new MutationObserver(updateScrollbarStyle);
-    const sidebarElement = document.querySelector('.sidebar');
-    if (sidebarElement) {
-      observer.observe(sidebarElement, { attributes: true });
-    }
+    // Verificar cambios cada vez que se actualiza el estado de visibilidad
+    const timeoutId = setTimeout(updateScrollbarStyle, 100);
 
     return () => {
-      if (sidebarElement) {
-        observer.disconnect();
-      }
+      clearTimeout(timeoutId);
     };
   }, [isVisible]);
 
@@ -159,7 +153,9 @@ function Sidebar({ setView, user, role, onLogout }) {
           left: 0, 
           top: 0, 
           zIndex: isMobile ? 200 : 100,
-          overflowY: 'auto',
+          overflowY: 'scroll',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           boxShadow: isMobile ? '4px 0 20px rgba(0, 0, 0, 0.3)' : '2px 0 10px rgba(0, 0, 0, 0.15)'
         }}>
@@ -312,6 +308,31 @@ function Sidebar({ setView, user, role, onLogout }) {
                   onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
                 >
                   <FaChartBar style={{ marginRight: '12px', fontSize: '18px' }} /> Ventas
+                </button>
+              </li>
+            )}
+            {canViewSales && (
+              <li style={{ marginBottom: '8px' }}>
+                <button 
+                  onClick={() => setView('reports')} 
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.1)', 
+                    border: 'none', 
+                    color: '#fff', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    width: '100%', 
+                    fontSize: '16px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    transition: 'all 0.2s ease',
+                    marginBottom: '4px'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                >
+                  <FaFileAlt style={{ marginRight: '12px', fontSize: '18px' }} /> Reportes
                 </button>
               </li>
             )}
