@@ -77,23 +77,33 @@ export const createSaleTransaction = async (ventaEncData, detalles) => {
 // Obtener ventas con filtros opcionales
 export const getSales = async (filters = {}) => {
   try {
-    let q = collection(db, 'ventaEnc')
+    const snapshot = await getDocs(collection(db, 'ventaEnc'))
+    let ventas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     
-    // Filtro por fecha (rango)
-    if (filters.startDate) {
-      q = query(q, where('fechaHora', '>=', filters.startDate))
-    }
-    if (filters.endDate) {
-      q = query(q, where('fechaHora', '<=', filters.endDate))
+    // Filtrar por fecha en el cliente para evitar problemas de zona horaria
+    if (filters.startDate || filters.endDate) {
+      ventas = ventas.filter(venta => {
+        if (!venta.fechaHora) return false
+        
+        // Extraer la fecha del timestamp ISO (sin considerar hora/zona horaria)
+        const ventaDate = venta.fechaHora.split('T')[0]
+        
+        if (filters.startDate && ventaDate < filters.startDate) return false
+        if (filters.endDate && ventaDate > filters.endDate) return false
+        
+        return true
+      })
     }
     
-    // Filtro por tipo de entrega
+    // Aplicar filtros adicionales en el cliente
     if (filters.tipoEntrega) {
-      q = query(q, where('tipoEntrega', '==', filters.tipoEntrega))
+      ventas = ventas.filter(venta => venta.tipoEntrega === filters.tipoEntrega)
     }
     
-    const snapshot = await getDocs(q)
-    const ventas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    if (filters.tipoPago) {
+      ventas = ventas.filter(venta => venta.tipoPago === filters.tipoPago)
+    }
+    
     return ventas
   } catch (error) {
     console.error('Error obteniendo ventas:', error)

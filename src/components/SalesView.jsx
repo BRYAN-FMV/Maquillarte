@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import { getSales, getSaleDetails, deleteSale, updateSale } from '../services/salesService'
+import { formatLocalDateTime } from '../utils/dateUtils'
 import NewSale from './NewSale'
 
 function SalesView({ userRole, onNavigate, user }) {
   const [ventas, setVentas] = useState([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
-    tipoEntrega: ''
+    startDate: new Date().toISOString().split('T')[0], // Hoy
+    endDate: new Date().toISOString().split('T')[0], // Hoy
+    tipoEntrega: '',
+    tipoPago: ''
   })
   const [expandedSale, setExpandedSale] = useState(null)
   const [saleDetails, setSaleDetails] = useState({})
@@ -141,9 +143,9 @@ function SalesView({ userRole, onNavigate, user }) {
   }
 
   return (
-    <div style={{ padding: '20px', width: '100%', minHeight: '100vh', boxSizing: 'border-box' }}>
+
+    <div style={{ padding: '20px', width: '100%', minHeight: '100vh', boxSizing: 'border-box' }}> 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>Ventas</h2>
         <button
           onClick={() => setShowNewSale(true)}
           style={{
@@ -164,7 +166,14 @@ function SalesView({ userRole, onNavigate, user }) {
       
       {/* Filtros */}
       <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px', marginBottom: '20px', width: '100%', boxSizing: 'border-box' }}>
-        <h4>Filtros</h4>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <h4>Filtros</h4>
+          {filters.startDate === filters.endDate && filters.startDate === new Date().toISOString().split('T')[0] && (
+            <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '14px' }}>
+              Mostrando ventas de hoy
+            </span>
+          )}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '10px' }}>
           <div>
             <label>Fecha inicio:</label>
@@ -197,6 +206,18 @@ function SalesView({ userRole, onNavigate, user }) {
               <option value="domicilio">Domicilio</option>
             </select>
           </div>
+          <div>
+            <label>Tipo de pago:</label>
+            <select 
+              value={filters.tipoPago} 
+              onChange={e => handleFilterChange('tipoPago', e.target.value)}
+              style={{ width: '100%', padding: '5px' }}
+            >
+              <option value="">Todos</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="tarjeta">Tarjeta</option>
+            </select>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={applyFilters} style={{ padding: '8px 15px', background: '#FFB6C1', border: 'none', cursor: 'pointer', borderRadius: '5px' }}>Aplicar Filtros</button>
@@ -205,9 +226,9 @@ function SalesView({ userRole, onNavigate, user }) {
       </div>
 
       {/* Total General */}
-      <div style={{ background: '#e8f5e8', padding: '15px', borderRadius: '8px', marginBottom: '20px', width: '100%', boxSizing: 'border-box' }}>
-        <h3>Total General: L.{totalGeneral.toFixed(2)}</h3>
-        <p>Mostrando {ventas.length} venta(s)</p>
+      <div style={{ background: '#e8f5e8', padding: '12px', borderRadius: '6px', marginBottom: '15px', width: '100%', boxSizing: 'border-box', fontSize: '13px' }}>
+        <h3 style={{ margin: '0 0 5px 0', fontSize: '15px' }}>Total General: L.{totalGeneral.toFixed(2)}</h3>
+        <p style={{ margin: 0, fontSize: '12px' }}>Mostrando {ventas.length} venta(s)</p>
       </div>
 
       {/* Lista de Ventas */}
@@ -219,9 +240,9 @@ function SalesView({ userRole, onNavigate, user }) {
             <div style={{ textAlign: 'center', padding: '40px' }}>No hay ventas que mostrar</div>
           ) : (
             ventas.map(venta => (
-              <div key={venta.id} style={{ border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px', overflow: 'hidden' }}>
+              <div key={venta.id} style={{ border: '1px solid #ddd', borderRadius: '6px', marginBottom: '8px', overflow: 'hidden', fontSize: '13px' }}>
                 <div 
-                  style={{ padding: '15px', background: '#f9f9f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  style={{ padding: '12px', background: '#f9f9f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}
                 >
                   <div style={{ flex: 1 }}>
                     {editingSale === venta.id ? (
@@ -249,7 +270,7 @@ function SalesView({ userRole, onNavigate, user }) {
                     ) : (
                       <div>
                         <strong>Cliente: {venta.nombreCliente}</strong>
-                        <div>Fecha: {new Date(venta.fechaHora).toLocaleString()}</div>
+                        <div>Fecha: {formatLocalDateTime(venta.fechaHora)}</div>
                         <div>Entrega: {venta.tipoEntrega}</div>
                       </div>
                     )}
@@ -284,24 +305,24 @@ function SalesView({ userRole, onNavigate, user }) {
                 </div>
                 
                 {expandedSale === venta.id && saleDetails[venta.id] && (
-                  <div style={{ padding: '15px', background: '#fff' }}>
-                    <h5>Productos vendidos:</h5>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <div style={{ padding: '12px', background: '#fff', borderTop: '1px solid #ddd', overflowX: 'auto' }}>
+                    <h5 style={{ margin: '0 0 10px 0', fontSize: '13px' }}>Productos vendidos:</h5>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                       <thead>
                         <tr style={{ background: '#f5f5f5' }}>
-                          <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #ddd' }}>Producto</th>
-                          <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>Cantidad</th>
-                          <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>Precio Unit.</th>
-                          <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>Subtotal</th>
+                          <th style={{ padding: '6px', textAlign: 'left', border: '1px solid #ddd', fontSize: '11px' }}>Producto</th>
+                          <th style={{ padding: '6px', textAlign: 'center', border: '1px solid #ddd', fontSize: '11px' }}>Cant</th>
+                          <th style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd', fontSize: '11px' }}>Precio</th>
+                          <th style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd', fontSize: '11px' }}>Subtotal</th>
                         </tr>
                       </thead>
                       <tbody>
                         {saleDetails[venta.id].map(detalle => (
                           <tr key={detalle.id}>
-                            <td style={{ padding: '8px', border: '1px solid #ddd' }}>{detalle.nombre}</td>
-                            <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ddd' }}>{detalle.cantidad}</td>
-                            <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>${Number(detalle.precioUnitario || 0).toFixed(2)}</td>
-                            <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ddd' }}>${(Number(detalle.precioUnitario || 0) * Number(detalle.cantidad || 0)).toFixed(2)}</td>
+                            <td style={{ padding: '6px', border: '1px solid #ddd', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detalle.nombre}</td>
+                            <td style={{ padding: '6px', textAlign: 'center', border: '1px solid #ddd' }}>{detalle.cantidad}</td>
+                            <td style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd' }}>${Number(detalle.precioUnitario || 0).toFixed(2)}</td>
+                            <td style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd' }}>${(Number(detalle.precioUnitario || 0) * Number(detalle.cantidad || 0)).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>

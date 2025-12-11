@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { FaFileAlt, FaDownload, FaCalendarAlt, FaChartBar, FaDollarSign, FaBox, FaUsers } from 'react-icons/fa'
+import { FaFileAlt, FaDownload, FaCalendarAlt, FaChartBar, FaDollarSign, FaBox, FaUsers, FaShoppingBag, FaTruck } from 'react-icons/fa'
 import { getReportsData, getFilteredReportsData, exportReportData } from '../services/reportsService'
 
-function Reports() {
+function Reports({ role = 'admin' }) {
   const [selectedReport, setSelectedReport] = useState('sales')
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Últimos 30 días
-    endDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Incluir mañana para cubrir hoy
+    startDate: new Date().toISOString().split('T')[0], // Hoy
+    endDate: new Date().toISOString().split('T')[0] // Hoy
   })
   const [reportData, setReportData] = useState({
     sales: {
@@ -20,6 +20,28 @@ function Reports() {
       lowStock: 0,
       outOfStock: 0,
       topProducts: []
+    },
+    expenses: {
+      totalExpenses: 0,
+      expensesByCategory: []
+    },
+    providers: {
+      totalProviders: 0,
+      totalProductos: 0,
+      proveedoresPrincipales: [],
+      analisisMargen: {
+        margenPromedio: 0,
+        productosAltaMargen: [],
+        productosBajaMargen: []
+      }
+    },
+    profitability: {
+      costopromedioVendido: 0,
+      precioPromedio: 0,
+      margenPromedioPorProducto: 0,
+      productosVendidos: [],
+      costoTotalInventario: 0,
+      precioTotalInventario: 0
     }
   })
   const [loading, setLoading] = useState(false)
@@ -36,7 +58,28 @@ function Reports() {
       name: 'Reporte de Inventario',
       icon: FaBox,
       description: 'Estado actual del inventario y productos'
-    }
+    },
+    // Solo admin puede ver los siguientes reportes:
+    ...(role === 'admin' ? [
+      {
+        id: 'expenses',
+        name: 'Reporte de Gastos',
+        icon: FaShoppingBag,
+        description: 'Análisis de gastos por categoría'
+      },
+      {
+        id: 'providers',
+        name: 'Reporte de Proveedores',
+        icon: FaTruck,
+        description: 'Análisis de proveedores y márgenes de ganancia'
+      },
+      {
+        id: 'profitability',
+        name: 'Rentabilidad',
+        icon: FaChartBar,
+        description: 'Análisis de ganancias y márgenes'
+      }
+    ] : [])
   ]
 
   // Obtener datos reales de reportes
@@ -99,102 +142,102 @@ function Reports() {
     }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-        gap: '20px',
-        padding: '30px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '15px',
+        padding: '20px'
       }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '15px',
-          padding: '20px',
+          gap: '12px',
+          padding: '15px',
           background: '#f8f9fa',
-          borderRadius: '10px',
+          borderRadius: '8px',
           borderLeft: '4px solid #e91e63'
         }}>
           <div style={{
-            width: '50px',
-            height: '50px',
+            width: '45px',
+            height: '45px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '1.5rem',
+            fontSize: '1.3rem',
             background: '#e91e63'
           }}>
             <FaDollarSign />
           </div>
           <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
               ${reportData.sales.totalRevenue.toLocaleString()}
             </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Ingresos Totales</p>
+            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Ingresos Totales</p>
           </div>
         </div>
         
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '15px',
-          padding: '20px',
+          gap: '12px',
+          padding: '15px',
           background: '#f8f9fa',
-          borderRadius: '10px',
+          borderRadius: '8px',
           borderLeft: '4px solid #e91e63'
         }}>
           <div style={{
-            width: '50px',
-            height: '50px',
+            width: '45px',
+            height: '45px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '1.5rem',
+            fontSize: '1.3rem',
             background: '#e91e63'
           }}>
             <FaChartBar />
           </div>
           <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
               {reportData.sales.totalSales}
             </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Ventas Realizadas</p>
+            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Ventas Realizadas</p>
           </div>
         </div>
         
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '15px',
-          padding: '20px',
+          gap: '12px',
+          padding: '15px',
           background: '#f8f9fa',
-          borderRadius: '10px',
+          borderRadius: '8px',
           borderLeft: '4px solid #e91e63'
         }}>
           <div style={{
-            width: '50px',
-            height: '50px',
+            width: '45px',
+            height: '45px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '1.5rem',
+            fontSize: '1.3rem',
             background: '#e91e63'
           }}>
             <FaFileAlt />
           </div>
           <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
               ${reportData.sales.averageTicket}
             </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Ticket Promedio</p>
+            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Ticket Promedio</p>
           </div>
         </div>
       </div>
 
-      <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
+      <div style={{ padding: '20px', borderTop: '1px solid #eee' }}>
         <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Ventas por Día de la Semana</h3>
         {reportData.sales.salesByDay.every(day => day.sales === 0) ? (
           <div style={{
@@ -212,11 +255,11 @@ function Reports() {
           <div style={{
             display: 'flex',
             alignItems: 'end',
-            gap: '20px',
-            height: '200px',
-            padding: '20px',
+            gap: '15px',
+            height: '180px',
+            padding: '15px',
             background: '#f8f9fa',
-            borderRadius: '10px'
+            borderRadius: '8px'
           }}>
             {reportData.sales.salesByDay.map((day, index) => {
               const maxSales = Math.max(...reportData.sales.salesByDay.map(d => d.sales), 1)
@@ -260,102 +303,102 @@ function Reports() {
     }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-        gap: '20px',
-        padding: '30px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '15px',
+        padding: '20px'
       }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '15px',
-          padding: '20px',
+          gap: '12px',
+          padding: '15px',
           background: '#f8f9fa',
-          borderRadius: '10px',
+          borderRadius: '8px',
           borderLeft: '4px solid #e91e63'
         }}>
           <div style={{
-            width: '50px',
-            height: '50px',
+            width: '45px',
+            height: '45px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '1.5rem',
+            fontSize: '1.3rem',
             background: '#2196f3'
           }}>
             <FaBox />
           </div>
           <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
               {reportData.inventory.totalProducts}
             </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Productos Totales</p>
+            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Productos Totales</p>
           </div>
         </div>
         
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '15px',
-          padding: '20px',
+          gap: '12px',
+          padding: '15px',
           background: '#f8f9fa',
-          borderRadius: '10px',
+          borderRadius: '8px',
           borderLeft: '4px solid #e91e63'
         }}>
           <div style={{
-            width: '50px',
-            height: '50px',
+            width: '45px',
+            height: '45px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '1.5rem',
+            fontSize: '1.3rem',
             background: '#ff9800'
           }}>
             <FaBox />
           </div>
           <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
               {reportData.inventory.lowStock}
             </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Stock Bajo</p>
+            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Stock Bajo</p>
           </div>
         </div>
         
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '15px',
-          padding: '20px',
+          gap: '12px',
+          padding: '15px',
           background: '#f8f9fa',
-          borderRadius: '10px',
+          borderRadius: '8px',
           borderLeft: '4px solid #e91e63'
         }}>
           <div style={{
-            width: '50px',
-            height: '50px',
+            width: '45px',
+            height: '45px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '1.5rem',
+            fontSize: '1.3rem',
             background: '#f44336'
           }}>
             <FaBox />
           </div>
           <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
               {reportData.inventory.outOfStock}
             </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Sin Stock</p>
+            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Sin Stock</p>
           </div>
         </div>
       </div>
 
-      <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
+      <div style={{ padding: '20px', borderTop: '1px solid #eee' }}>
         <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Productos Más Vendidos</h3>
         {reportData.inventory.topProducts.length === 0 ? (
           <div style={{
@@ -553,12 +596,570 @@ function Reports() {
     </div>
   )
 
+  const renderExpensesReport = () => (
+    <div style={{
+      background: 'white',
+      borderRadius: '12px',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '15px',
+        padding: '20px'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '15px',
+          background: '#f8f9fa',
+          borderRadius: '8px',
+          borderLeft: '4px solid #ff6b6b'
+        }}>
+          <div style={{
+            width: '45px',
+            height: '45px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '1.3rem',
+            background: '#ff6b6b'
+          }}>
+            <FaShoppingBag />
+          </div>
+          <div>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
+              ${reportData.expenses.totalExpenses.toLocaleString()}
+            </h3>
+            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Gastos Totales</p>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '20px', borderTop: '1px solid #eee' }}>
+        <h3 style={{ marginBottom: '15px', color: '#2c3e50', fontSize: '14px' }}>Gastos por Categoría</h3>
+        {reportData.expenses.expensesByCategory.every(cat => cat.amount === 0) ? (
+          <div style={{
+            padding: '20px',
+            textAlign: 'center',
+            background: '#f8f9fa',
+            borderRadius: '8px',
+            color: '#666',
+            fontSize: '13px'
+          }}>
+            <FaShoppingBag style={{ fontSize: '2.5rem', color: '#ddd', marginBottom: '12px' }} />
+            <p>No hay gastos registrados en el período seleccionado</p>
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '20px'
+          }}>
+            {reportData.expenses.expensesByCategory.map((category, index) => (
+              <div key={index} style={{
+                padding: '20px',
+                background: '#f8f9fa',
+                borderRadius: '10px',
+                borderLeft: `4px solid ${category.color}`
+              }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>{category.category}</h4>
+                <p style={{ margin: '0', fontSize: '1.8rem', fontWeight: 'bold', color: category.color }}>
+                  ${category.amount.toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderProfitabilityReport = () => {
+    const totalRevenue = reportData.sales.totalRevenue
+    const totalExpenses = reportData.expenses.totalExpenses
+    const profit = totalRevenue - totalExpenses
+    const profitMargin = totalRevenue > 0 ? ((profit / totalRevenue) * 100).toFixed(2) : 0
+    
+    return (
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '15px',
+          padding: '20px'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '15px',
+            background: '#f8f9fa',
+            borderRadius: '8px',
+            borderLeft: `4px solid ${profit >= 0 ? '#4caf50' : '#f44336'}`
+          }}>
+            <div style={{
+              width: '45px',
+              height: '45px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '1.3rem',
+              background: profit >= 0 ? '#4caf50' : '#f44336'
+            }}>
+              <FaDollarSign />
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
+                ${profit.toLocaleString()}
+              </h3>
+              <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Ganancia Neta</p>
+            </div>
+          </div>
+          
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '15px',
+            background: '#f8f9fa',
+            borderRadius: '8px',
+            borderLeft: '4px solid #2196f3'
+          }}>
+            <div style={{
+              width: '45px',
+              height: '45px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '1.3rem',
+              background: '#2196f3'
+            }}>
+              <FaChartBar />
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
+                {profitMargin}%
+              </h3>
+              <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Margen de Ganancia</p>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Resumen Financiero</h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '20px'
+          }}>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: '4px solid #e91e63'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Ingresos</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#4caf50' }}>
+                ${totalRevenue.toLocaleString()}
+              </p>
+            </div>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: '4px solid #ff6b6b'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Gastos</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#f44336' }}>
+                ${totalExpenses.toLocaleString()}
+              </p>
+            </div>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: `4px solid ${profit >= 0 ? '#4caf50' : '#f44336'}`
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Ganancia Neta</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: profit >= 0 ? '#4caf50' : '#f44336' }}>
+                ${profit.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Análisis de Productos Vendidos</h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '20px',
+            marginBottom: '30px'
+          }}>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: '4px solid #ff9800'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Costo Promedio</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#ff9800' }}>
+                ${reportData.profitability.costopromedioVendido.toLocaleString()}
+              </p>
+            </div>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: '4px solid #2196f3'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Precio Promedio</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#2196f3' }}>
+                ${reportData.profitability.precioPromedio.toLocaleString()}
+              </p>
+            </div>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: '4px solid #4caf50'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Margen Promedio</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#4caf50' }}>
+                {reportData.profitability.margenPromedioPorProducto}%
+              </p>
+            </div>
+          </div>
+
+          <h4 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>Top 10 Productos por Ganancia</h4>
+          {reportData.profitability.productosVendidos.length === 0 ? (
+            <div style={{
+              padding: '40px',
+              textAlign: 'center',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              color: '#666'
+            }}>
+              <FaBox style={{ fontSize: '3rem', color: '#ddd', marginBottom: '15px' }} />
+              <p>No hay productos vendidos para analizar</p>
+            </div>
+          ) : (
+            <div style={{
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              overflow: 'hidden'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ background: '#e0e0e0' }}>
+                  <tr>
+                    <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold', borderBottom: '2px solid #999' }}>Producto</th>
+                    <th style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', borderBottom: '2px solid #999' }}>Cantidad</th>
+                    <th style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold', borderBottom: '2px solid #999' }}>Costo/U</th>
+                    <th style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold', borderBottom: '2px solid #999' }}>Precio/U</th>
+                    <th style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold', borderBottom: '2px solid #999' }}>Margen</th>
+                    <th style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold', borderBottom: '2px solid #999' }}>Ganancia Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportData.profitability.productosVendidos.map((producto, index) => (
+                    <tr key={index} style={{ borderBottom: '1px solid #ddd' }}>
+                      <td style={{ padding: '12px 15px', color: '#2c3e50', fontWeight: '500' }}>{producto.nombre}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'center', color: '#666' }}>{producto.cantidadVendida}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#ff9800' }}>${producto.costoPorUnidad.toFixed(2)}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#2196f3' }}>${producto.precioPorUnidad.toFixed(2)}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#4caf50', fontWeight: 'bold' }}>{producto.margenPorcentaje.toFixed(1)}%</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#4caf50', fontWeight: 'bold' }}>${producto.gananciaTotal.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Valorización del Inventario Actual</h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '20px'
+          }}>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: '4px solid #ff9800'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Costo Total en Stock</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#ff9800' }}>
+                ${reportData.profitability.costoTotalInventario.toLocaleString()}
+              </p>
+            </div>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: '4px solid #2196f3'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Valor de Venta Potencial</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#2196f3' }}>
+                ${reportData.profitability.precioTotalInventario.toLocaleString()}
+              </p>
+            </div>
+            <div style={{
+              padding: '20px',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              borderLeft: '4px solid #4caf50'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Ganancia Potencial</h4>
+              <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#4caf50' }}>
+                ${(reportData.profitability.precioTotalInventario - reportData.profitability.costoTotalInventario).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderProvidersReport = () => (
+    <div style={{
+      background: 'white',
+      borderRadius: '12px',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+      overflow: 'hidden'
+    }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '15px',
+        padding: '20px'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '15px',
+          background: '#f8f9fa',
+          borderRadius: '8px',
+          borderLeft: '4px solid #2196f3'
+        }}>
+          <div style={{
+            width: '45px',
+            height: '45px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '1.3rem',
+            background: '#2196f3'
+          }}>
+            <FaTruck />
+          </div>
+          <div>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
+              {reportData.providers.totalProviders}
+            </h3>
+            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Proveedores Activos</p>
+          </div>
+        </div>
+        
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '15px',
+          background: '#f8f9fa',
+          borderRadius: '8px',
+          borderLeft: '4px solid #ff9800'
+        }}>
+          <div style={{
+            width: '45px',
+            height: '45px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '1.3rem',
+            background: '#ff9800'
+          }}>
+            <FaBox />
+          </div>
+          <div>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
+              {reportData.providers.totalProductos}
+            </h3>
+            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Productos Disponibles</p>
+          </div>
+        </div>
+        
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '15px',
+          padding: '20px',
+          background: '#f8f9fa',
+          borderRadius: '10px',
+          borderLeft: '4px solid #4caf50'
+        }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '1.5rem',
+            background: '#4caf50'
+          }}>
+            <FaChartBar />
+          </div>
+          <div>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
+              {reportData.providers.analisisMargen.margenPromedio}%
+            </h3>
+            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Margen Promedio</p>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
+        <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Proveedores Principales</h3>
+        {reportData.providers.proveedoresPrincipales.length === 0 ? (
+          <div style={{
+            padding: '40px',
+            textAlign: 'center',
+            background: '#f8f9fa',
+            borderRadius: '10px',
+            color: '#666'
+          }}>
+            <FaTruck style={{ fontSize: '3rem', color: '#ddd', marginBottom: '15px' }} />
+            <p>No hay proveedores registrados</p>
+          </div>
+        ) : (
+          <div style={{
+            background: '#f8f9fa',
+            borderRadius: '10px',
+            overflow: 'hidden'
+          }}>
+            {reportData.providers.proveedoresPrincipales.map((provider, index) => (
+              <div key={index} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '15px 20px',
+                borderBottom: index < reportData.providers.proveedoresPrincipales.length - 1 ? '1px solid #eee' : 'none'
+              }}>
+                <div style={{ flex: 1 }}>
+                  <h4 style={{ margin: '0 0 5px 0', color: '#2c3e50' }}>{provider.nombre}</h4>
+                  <p style={{ margin: '0', fontSize: '12px', color: '#666' }}>
+                    {provider.totalProductos} productos • {provider.cantidadCompras} compras
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ margin: '0', fontSize: '1.2rem', fontWeight: 'bold', color: '#2196f3' }}>
+                    ${provider.montoCompras.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
+        <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Análisis de Márgenes de Ganancia</h3>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: '20px'
+        }}>
+          <div style={{
+            padding: '20px',
+            background: '#f8f9fa',
+            borderRadius: '10px',
+            borderLeft: '4px solid #4caf50'
+          }}>
+            <h4 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>Productos con Alto Margen (≥50%)</h4>
+            {reportData.providers.analisisMargen.productosAltaMargen.length === 0 ? (
+              <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Sin productos con alto margen</p>
+            ) : (
+              reportData.providers.analisisMargen.productosAltaMargen.map((product, index) => (
+                <div key={index} style={{ 
+                  padding: '10px 0', 
+                  borderBottom: index < reportData.providers.analisisMargen.productosAltaMargen.length - 1 ? '1px solid #eee' : 'none',
+                  fontSize: '13px'
+                }}>
+                  <p style={{ margin: '0 0 3px 0', fontWeight: '500', color: '#2c3e50' }}>{product.nombre}</p>
+                  <p style={{ margin: '0 0 3px 0', color: '#666' }}>Proveedor: {product.proveedor}</p>
+                  <p style={{ margin: '0', color: '#4caf50', fontWeight: 'bold' }}>
+                    Margen: {product.margen.toFixed(1)}%
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div style={{
+            padding: '20px',
+            background: '#f8f9fa',
+            borderRadius: '10px',
+            borderLeft: '4px solid #ff9800'
+          }}>
+            <h4 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>Productos con Bajo Margen (&lt;20%)</h4>
+            {reportData.providers.analisisMargen.productosBajaMargen.length === 0 ? (
+              <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Sin productos con bajo margen</p>
+            ) : (
+              reportData.providers.analisisMargen.productosBajaMargen.map((product, index) => (
+                <div key={index} style={{ 
+                  padding: '10px 0', 
+                  borderBottom: index < reportData.providers.analisisMargen.productosBajaMargen.length - 1 ? '1px solid #eee' : 'none',
+                  fontSize: '13px'
+                }}>
+                  <p style={{ margin: '0 0 3px 0', fontWeight: '500', color: '#2c3e50' }}>{product.nombre}</p>
+                  <p style={{ margin: '0 0 3px 0', color: '#666' }}>Proveedor: {product.proveedor}</p>
+                  <p style={{ margin: '0', color: '#ff9800', fontWeight: 'bold' }}>
+                    Margen: {product.margen.toFixed(1)}%
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   const renderReportContent = () => {
     switch (selectedReport) {
       case 'sales':
         return renderSalesReport()
       case 'inventory':
         return renderInventoryReport()
+      case 'expenses':
+        return renderExpensesReport()
+      case 'profitability':
+        return renderProfitabilityReport()
+      case 'providers':
+        return renderProvidersReport()
       default:
         return renderSalesReport()
     }
@@ -566,7 +1167,7 @@ function Reports() {
 
   return (
     <div style={{
-      padding: '20px',
+      padding: '12px',
       maxWidth: '1200px',
       margin: '0 auto',
       background: '#f8f9fa',
@@ -574,56 +1175,57 @@ function Reports() {
     }}>
       <div style={{
         textAlign: 'center',
-        marginBottom: '30px',
-        padding: '20px',
+        marginBottom: '15px',
+        padding: '12px',
         background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
         <h1 style={{
           color: '#2c3e50',
-          marginBottom: '10px',
+          marginBottom: '5px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '2.5rem'
+          fontSize: '1.8rem'
         }}>
-          <FaFileAlt style={{ marginRight: '10px', color: '#e91e63' }} />
+          <FaFileAlt style={{ marginRight: '8px', color: '#e91e63' }} />
           Reportes Generales
         </h1>
-        <p>Análisis y estadísticas del negocio</p>
+        <p style={{ margin: 0, fontSize: '12px' }}>Análisis y estadísticas del negocio</p>
       </div>
 
       <div style={{
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '30px',
-        padding: '20px',
+        flexDirection: 'column',
+        gap: '10px',
+        marginBottom: '15px',
+        padding: '12px',
         background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        flexWrap: 'wrap',
-        gap: '15px'
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        flexWrap: 'wrap'
       }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
+          gap: '8px',
           color: '#2c3e50',
-          fontWeight: '500'
+          fontWeight: '500',
+          fontSize: '13px',
+          flexWrap: 'wrap'
         }}>
-          <FaCalendarAlt style={{ marginRight: '8px' }} />
+          <FaCalendarAlt style={{ marginRight: '4px', fontSize: '14px' }} />
           <span>Período:</span>
           <input
             type="date"
             value={dateRange.startDate}
             onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
             style={{
-              padding: '8px 12px',
-              border: '2px solid #ddd',
-              borderRadius: '6px',
-              fontSize: '14px'
+              padding: '6px 10px',
+              border: '1px solid #ddd',
+              borderRadius: '5px',
+              fontSize: '12px'
             }}
           />
           <span>hasta</span>
@@ -632,57 +1234,65 @@ function Reports() {
             value={dateRange.endDate}
             onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
             style={{
-              padding: '8px 12px',
-              border: '2px solid #ddd',
-              borderRadius: '6px',
-              fontSize: '14px'
+              padding: '6px 10px',
+              border: '1px solid #ddd',
+              borderRadius: '5px',
+              fontSize: '12px'
             }}
           />
+          {dateRange.startDate === dateRange.endDate && dateRange.startDate === new Date().toISOString().split('T')[0] && (
+            <span style={{ color: '#28a745', fontWeight: 'bold', fontSize: '11px', marginLeft: '5px' }}>
+              Hoy
+            </span>
+          )}
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button 
             onClick={() => exportReport('PDF')} 
             style={{
-              padding: '10px 20px',
+              padding: '8px 14px',
               background: '#e91e63',
               color: 'white',
               border: 'none',
-              borderRadius: '6px',
+              borderRadius: '5px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontWeight: '500'
+              gap: '6px',
+              fontWeight: '500',
+              fontSize: '12px'
             }}
           >
-            <FaDownload /> PDF
+            <FaDownload style={{ fontSize: '12px' }} /> PDF
           </button>
           <button 
             onClick={() => exportReport('Excel')} 
             style={{
-              padding: '10px 20px',
+              padding: '8px 14px',
               background: '#e91e63',
               color: 'white',
               border: 'none',
-              borderRadius: '6px',
+              borderRadius: '5px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontWeight: '500'
+              gap: '6px',
+              fontWeight: '500',
+              fontSize: '12px'
             }}
           >
-            <FaDownload /> Excel
+            <FaDownload style={{ fontSize: '12px' }} /> Excel
           </button>
         </div>
       </div>
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: '20px',
-        marginBottom: '30px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '12px',
+        marginBottom: '15px',
+        width: '100%'
       }}>
         {reportTypes.map(type => {
           const IconComponent = type.icon
@@ -692,21 +1302,22 @@ function Reports() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '15px',
-                padding: '20px',
+                gap: '10px',
+                padding: '12px',
                 background: 'white',
-                border: selectedReport === type.id ? '2px solid #e91e63' : '2px solid #eee',
-                borderRadius: '12px',
+                border: selectedReport === type.id ? '2px solid #e91e63' : '1px solid #ddd',
+                borderRadius: '8px',
                 cursor: 'pointer',
                 textAlign: 'left',
-                backgroundColor: selectedReport === type.id ? '#fce4ec' : 'white'
+                backgroundColor: selectedReport === type.id ? '#fce4ec' : 'white',
+                fontSize: '13px'
               }}
               onClick={() => setSelectedReport(type.id)}
             >
-              <IconComponent style={{ fontSize: '2rem', color: '#e91e63' }} />
-              <div>
-                <h3 style={{ margin: '0 0 5px 0', color: '#2c3e50' }}>{type.name}</h3>
-                <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>{type.description}</p>
+              <IconComponent style={{ fontSize: '1.5rem', color: '#e91e63', flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <h3 style={{ margin: '0 0 2px 0', color: '#2c3e50', fontSize: '13px', fontWeight: '600' }}>{type.name}</h3>
+                <p style={{ margin: '0', color: '#666', fontSize: '11px' }}>{type.description}</p>
               </div>
             </button>
           )

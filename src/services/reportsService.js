@@ -1,6 +1,7 @@
 // Servicio para obtener datos de reportes
 import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore'
 import { app } from '../firebase'
+import { getDateStringFromISO } from '../utils/dateUtils'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -176,6 +177,332 @@ const calculateInventoryMetrics = (inventoryData, salesData) => {
   }
 }
 
+// Obtener gastos de Firestore
+const getExpensesDataFromFirestore = async () => {
+  try {
+    // Obtener todos los gastos sin ordenamiento en la consulta (evita índices)
+    const gastosSnapshot = await getDocs(collection(db, 'gastos'))
+    const expenses = gastosSnapshot.docs.map(doc => {
+      const data = doc.data()
+      
+      // El gasto puede tener fecha en formato "fecha" (YYYY-MM-DD) o "fechaHora" (ISO)
+      let fechaHora = data.fechaHora
+      if (!fechaHora && data.fecha) {
+        // Si solo tiene fecha (YYYY-MM-DD), crear un ISO string para ese día
+        fechaHora = new Date(data.fecha + 'T00:00:00Z').toISOString()
+      }
+      if (!fechaHora) {
+        // Si no tiene ninguna fecha, usar la actual
+        fechaHora = new Date().toISOString()
+      }
+      
+      return {
+        id: doc.id,
+        ...data,
+        monto: Number(data.monto || 0),
+        fechaHora: fechaHora,
+        fecha: data.fecha || fechaHora.split('T')[0]
+      }
+    })
+    
+
+    return expenses
+  } catch (error) {
+    console.error('Error obteniendo gastos de Firestore:', error)
+    return []
+  }
+}
+
+// Obtener proveedores de Firestore con sus productos y compras
+const getProvidersDataFromFirestore = async () => {
+  try {
+    const proveedoresSnapshot = await getDocs(collection(db, 'proveedores'))
+    const providers = []
+    
+    for (const provDoc of proveedoresSnapshot.docs) {
+      const provData = { id: provDoc.id, ...provDoc.data() }
+      
+      // Obtener productos del proveedor
+      const productosQuery = query(collection(db, 'proveedorProductos'), where('idProveedor', '==', provDoc.id))
+      const productosSnapshot = await getDocs(productosQuery)
+      const productos = productosSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        costo: Number(doc.data().costo || 0),
+        precio: Number(doc.data().precio || 0),
+        cantidad: Number(doc.data().cantidad || 0)
+      }))
+      
+      // Obtener compras del proveedor
+      const comprasQuery = query(collection(db, 'compras'), where('idProveedor', '==', provDoc.id))
+      const comprasSnapshot = await getDocs(comprasQuery)
+      const compras = comprasSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        total: Number(doc.data().total || 0)
+      }))
+      
+      providers.push({
+        ...provData,
+        productos: productos,
+        compras: compras,
+        totalProductos: productos.length,
+        totalCompras: compras.length,
+        montoTotalCompras: compras.reduce((sum, c) => sum + (c.total || 0), 0)
+      })
+    }
+    
+    return providers
+  } catch (error) {
+    console.error('Error obteniendo proveedores de Firestore:', error)
+    return []
+  }
+}
+
+// Calcular métricas de gastos
+const calculateExpensesMetrics = (expensesData) => {
+  if (!expensesData || expensesData.length === 0) {
+    return {
+      totalExpenses: 0,
+      expensesByCategory: [
+        { category: 'Compras', amount: 0, color: '#e91e63' },
+        { category: 'Operación', amount: 0, color: '#2196f3' },
+        { category: 'Marketing', amount: 0, color: '#ff9800' },
+        { category: 'Otros', amount: 0, color: '#9c27b0' }
+      ]
+    }
+  }
+
+  const totalExpenses = expensesData.reduce((sum, expense) => sum + (expense.monto || 0), 0)
+  
+
+  // Normalizar categorías para evitar problemas de formato
+  const normalize = (str) => {
+    return (str || '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita tildes
+      .replace(/\s+/g, '') // quita espacios
+  }
+
+  const categoryMap = {
+    'compras': { category: 'Compras', color: '#e91e63' },
+    'operacion': { category: 'Operación', color: '#2196f3' },
+    'marketing': { category: 'Marketing', color: '#ff9800' },
+    'otros': { category: 'Otros', color: '#9c27b0' }
+  }
+
+
+  // Categorías presentes en los datos
+  const foundCategories = {};
+  expensesData.forEach(e => {
+    const norm = normalize(e.categoria);
+    if (!foundCategories[norm]) {
+      foundCategories[norm] = {
+        category: e.categoria || 'Sin categoría',
+        color: categoryMap[norm]?.color || '#bdbdbd',
+        amount: 0
+      };
+    }
+    foundCategories[norm].amount += e.monto || 0;
+  });
+
+  // Mantener el orden de las categorías predefinidas primero
+  const expensesByCategory = [
+    ...Object.entries(categoryMap).map(([key, value]) => {
+      const found = foundCategories[key];
+      return {
+        category: value.category,
+        amount: found ? found.amount : 0,
+        color: value.color
+      };
+    }),
+    // Agregar las categorías no predefinidas
+    ...Object.entries(foundCategories)
+      .filter(([key]) => !categoryMap[key])
+      .map(([key, value]) => ({
+        category: value.category,
+        amount: value.amount,
+        color: value.color
+      }))
+  ];
+
+  return {
+    totalExpenses,
+    expensesByCategory
+  }
+}
+
+// Calcular métricas de proveedores
+const calculateProvidersMetrics = (providersData) => {
+  if (!providersData || providersData.length === 0) {
+    return {
+      totalProviders: 0,
+      totalProductos: 0,
+      proveedoresPrincipales: [],
+      analisisMargen: {
+        margenPromedio: 0,
+        productosAltaMargen: [],
+        productosBajaMargen: []
+      }
+    }
+  }
+
+  const totalProviders = providersData.filter(p => p.activo !== false).length
+  const totalProductos = providersData.reduce((sum, p) => sum + (p.totalProductos || 0), 0)
+  
+  // Proveedores principales por monto de compras
+  const proveedoresPrincipales = providersData
+    .filter(p => p.activo !== false)
+    .map(p => ({
+      nombre: p.nombre,
+      montoCompras: p.montoTotalCompras || 0,
+      totalProductos: p.totalProductos || 0,
+      cantidadCompras: p.totalCompras || 0
+    }))
+    .sort((a, b) => b.montoCompras - a.montoCompras)
+    .slice(0, 5)
+
+  // Análisis de margen de ganancia
+  const allProducts = providersData.flatMap(p => 
+    (p.productos || []).map(prod => ({
+      nombre: prod.nombre,
+      proveedor: p.nombre,
+      costo: prod.costo || 0,
+      precio: prod.precio || 0,
+      margen: prod.precio && prod.costo ? ((prod.precio - prod.costo) / prod.costo * 100) : 0
+    }))
+  )
+
+  const margenPromedio = allProducts.length > 0 
+    ? Math.round(allProducts.reduce((sum, p) => sum + p.margen, 0) / allProducts.length)
+    : 0
+
+  const productosAltaMargen = allProducts
+    .filter(p => p.margen >= 50)
+    .sort((a, b) => b.margen - a.margen)
+    .slice(0, 5)
+
+  const productosBajaMargen = allProducts
+    .filter(p => p.margen > 0 && p.margen < 20)
+    .sort((a, b) => a.margen - b.margen)
+    .slice(0, 5)
+
+  return {
+    totalProviders,
+    totalProductos,
+    proveedoresPrincipales,
+    analisisMargen: {
+      margenPromedio,
+      productosAltaMargen,
+      productosBajaMargen
+    }
+  }
+}
+
+// Calcular métricas de rentabilidad por producto
+const calculateProfitabilityMetrics = (salesData, providersData, inventoryData) => {
+  if (!salesData || salesData.length === 0) {
+    return {
+      costopromedioVendido: 0,
+      precioPromedio: 0,
+      margenPromedioPorProducto: 0,
+      productosVendidos: [],
+      costoTotalInventario: 0,
+      precioTotalInventario: 0
+    }
+  }
+
+  // Crear mapa de costos y precios de productos desde el inventario y proveedores
+  const productoCostos = {}
+  const productoPrecios = {}
+
+  // Obtener costos desde proveedorProductos
+  providersData.forEach(provider => {
+    if (provider.productos) {
+      provider.productos.forEach(prod => {
+        if (!productoCostos[prod.nombre]) {
+          productoCostos[prod.nombre] = prod.costo || 0
+        }
+      })
+    }
+  })
+
+  // Obtener precios desde inventario
+  inventoryData.forEach(inv => {
+    productoPrecios[inv.nombre] = inv.precio || 0
+  })
+
+  // Calcular métricas de productos vendidos
+  const productosVendidosMap = {}
+  
+  salesData.forEach(sale => {
+    if (sale.items && Array.isArray(sale.items)) {
+      sale.items.forEach(item => {
+        const nombre = item.nombre || 'Producto desconocido'
+        const cantidad = Number(item.cantidad || 1)
+        const precioVenta = Number(item.precioUnitario || 0)
+        const costo = productoCostos[nombre] || 0
+        const margen = precioVenta > 0 ? ((precioVenta - costo) / precioVenta * 100) : 0
+
+        if (!productosVendidosMap[nombre]) {
+          productosVendidosMap[nombre] = {
+            nombre: nombre,
+            cantidadVendida: 0,
+            costoPorUnidad: costo,
+            precioPorUnidad: precioVenta,
+            margenPorcentaje: margen,
+            ingresoTotal: 0,
+            costoTotal: 0,
+            gananciaTotal: 0
+          }
+        }
+
+        productosVendidosMap[nombre].cantidadVendida += cantidad
+        productosVendidosMap[nombre].ingresoTotal += precioVenta * cantidad
+        productosVendidosMap[nombre].costoTotal += costo * cantidad
+        productosVendidosMap[nombre].gananciaTotal += (precioVenta - costo) * cantidad
+      })
+    }
+  })
+
+  const productosVendidos = Object.values(productosVendidosMap)
+    .sort((a, b) => b.gananciaTotal - a.gananciaTotal)
+
+  // Calcular promedios
+  const costopromedioVendido = productosVendidos.length > 0
+    ? productosVendidos.reduce((sum, p) => sum + p.costoPorUnidad, 0) / productosVendidos.length
+    : 0
+
+  const precioPromedio = productosVendidos.length > 0
+    ? productosVendidos.reduce((sum, p) => sum + p.precioPorUnidad, 0) / productosVendidos.length
+    : 0
+
+  const margenPromedioPorProducto = productosVendidos.length > 0
+    ? productosVendidos.reduce((sum, p) => sum + p.margenPorcentaje, 0) / productosVendidos.length
+    : 0
+
+  // Calcular costo total del inventario
+  const costoTotalInventario = inventoryData.reduce((sum, inv) => {
+    const costo = productoCostos[inv.nombre] || 0
+    const cantidad = inv.stock || 0
+    return sum + (costo * cantidad)
+  }, 0)
+
+  const precioTotalInventario = inventoryData.reduce((sum, inv) => {
+    const precio = inv.precio || 0
+    const cantidad = inv.stock || 0
+    return sum + (precio * cantidad)
+  }, 0)
+
+  return {
+    costopromedioVendido: Math.round(costopromedioVendido * 100) / 100,
+    precioPromedio: Math.round(precioPromedio * 100) / 100,
+    margenPromedioPorProducto: Math.round(margenPromedioPorProducto * 100) / 100,
+    productosVendidos: productosVendidos.slice(0, 10),
+    costoTotalInventario: Math.round(costoTotalInventario * 100) / 100,
+    precioTotalInventario: Math.round(precioTotalInventario * 100) / 100
+  }
+}
+
 // Función para filtrar datos por rango de fechas
 export const getFilteredReportsData = async (startDate, endDate) => {
   try {
@@ -186,43 +513,69 @@ export const getFilteredReportsData = async (startDate, endDate) => {
     // Obtener datos de inventario de Firestore
     const inventoryData = await getInventoryDataFromFirestore()
 
-    // Filtrar ventas por fecha
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-    end.setHours(23, 59, 59, 999) // Incluir todo el día final
+    // Obtener datos de gastos de Firestore
+    const allExpensesData = await getExpensesDataFromFirestore()
 
+    // Obtener datos de proveedores de Firestore
+    const providersData = await getProvidersDataFromFirestore()
 
+    // Filtrar ventas por fecha - comparación simple de strings YYYY-MM-DD
     const filteredSales = allSalesData.filter(sale => {
       if (!sale.timestamp) {
         return false
       }
       
-      // Convertir la fecha de la venta a fecha local (sin hora)
-      const saleDate = new Date(sale.timestamp)
-      const saleDateOnly = new Date(saleDate.getFullYear(), saleDate.getMonth(), saleDate.getDate())
+      // Extraer la fecha del timestamp ISO (sin considerar hora/zona horaria)
+      const saleDateString = getDateStringFromISO(sale.timestamp)
+      if (!saleDateString) return false
       
-      // Convertir las fechas de filtro a fechas locales
-      const startDateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-      const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate())
-      
-      const isInRange = saleDateOnly >= startDateOnly && saleDateOnly <= endDateOnly
-      return isInRange
+      // Comparar fechas como strings (YYYY-MM-DD)
+      return saleDateString >= startDate && saleDateString <= endDate
     })
+
+    // Filtrar gastos por fecha - comparación simple de strings YYYY-MM-DD
+    const filteredExpenses = allExpensesData.filter(expense => {
+      if (!expense.fechaHora && !expense.fecha) {
+        return false
+      }
+      
+      // Usar fecha si existe, si no usar fechaHora
+      let expenseDateString = expense.fecha || getDateStringFromISO(expense.fechaHora)
+      if (!expenseDateString) return false
+      
+      // Comparar fechas como strings (YYYY-MM-DD)
+      return expenseDateString >= startDate && expenseDateString <= endDate
+    })
+
+
 
 
     // Calcular métricas con datos filtrados
     const salesMetrics = calculateSalesMetrics(filteredSales)
     const inventoryMetrics = calculateInventoryMetrics(inventoryData, filteredSales)
+    const expensesMetrics = calculateExpensesMetrics(filteredExpenses)
+    const providersMetrics = calculateProvidersMetrics(providersData)
+    const profitabilityMetrics = calculateProfitabilityMetrics(filteredSales, providersData, inventoryData)
+
+
+
+
 
     return {
       sales: salesMetrics,
-      inventory: inventoryMetrics
+      inventory: inventoryMetrics,
+      expenses: expensesMetrics,
+      providers: providersMetrics,
+      profitability: profitabilityMetrics
     }
   } catch (error) {
     console.error('Error obteniendo datos filtrados:', error)
     return {
       sales: { totalSales: 0, totalRevenue: 0, averageTicket: 0, salesByDay: [] },
-      inventory: { totalProducts: 0, lowStock: 0, outOfStock: 0, topProducts: [] }
+      inventory: { totalProducts: 0, lowStock: 0, outOfStock: 0, topProducts: [] },
+      expenses: { totalExpenses: 0, expensesByCategory: [] },
+      providers: { totalProviders: 0, totalProductos: 0, proveedoresPrincipales: [], analisisMargen: { margenPromedio: 0, productosAltaMargen: [], productosBajaMargen: [] } },
+      profitability: { costopromedioVendido: 0, precioPromedio: 0, margenPromedioPorProducto: 0, productosVendidos: [], costoTotalInventario: 0, precioTotalInventario: 0 }
     }
   }
 }

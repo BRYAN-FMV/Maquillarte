@@ -7,6 +7,8 @@ import UserProfile from './components/UserProfile'
 import UserManagement from './components/UserManagement'
 import SalesView from './components/SalesView'
 import Reports from './components/Reports'
+import Providers from './components/Providers'
+import Expenses from './components/Expenses'
 import { onAuthChange } from './services/authService'
 import './App.css'
 
@@ -108,7 +110,7 @@ function App() {
       case 'reports':
         // Solo admin y employee pueden ver reportes
         if (role === 'admin' || role === 'employee') {
-          return <Reports />
+          return <Reports role={role} />
         } else {
           return (
             <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -126,6 +128,30 @@ function App() {
             <div style={{ padding: '20px', textAlign: 'center' }}>
               <h2>Acceso Denegado</h2>
               <p>No tienes permisos para acceder a la gestión de usuarios.</p>
+            </div>
+          )
+        }
+      case 'providers':
+        // Solo admin puede acceder a proveedores
+        if (role === 'admin') {
+          return <Providers user={user} />
+        } else {
+          return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <h2>Acceso Denegado</h2>
+              <p>No tienes permisos para acceder a los proveedores.</p>
+            </div>
+          )
+        }
+      case 'expenses':
+        // Solo admin y employee pueden acceder a gastos
+        if (role === 'admin' || role === 'employee') {
+          return <Expenses user={user} />
+        } else {
+          return (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <h2>Acceso Denegado</h2>
+              <p>No tienes permisos para acceder a los gastos.</p>
             </div>
           )
         }
