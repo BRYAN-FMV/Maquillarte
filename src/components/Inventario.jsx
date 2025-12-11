@@ -4,7 +4,7 @@ import Scanner from './Scanner'
 
 function Inventario({ userRole }) {
   const [inventario, setInventario] = useState([])
-  const [newItem, setNewItem] = useState({ id: '', nombre: '', stock: '', precioUnitario: '' })
+  const [newItem, setNewItem] = useState({ id: '', nombre: '', cantidad: '', costo: '', precio: '' })
   const [editingId, setEditingId] = useState(null)
   const [showScanner, setShowScanner] = useState(false)
 
@@ -36,13 +36,16 @@ function Inventario({ userRole }) {
       alert('No tienes permisos para agregar productos')
       return
     }
-    if (!newItem.id || !newItem.nombre || !newItem.stock || !newItem.precioUnitario) return
+    if (!newItem.id || !newItem.nombre || !newItem.cantidad || !newItem.costo || !newItem.precio) return
     try {
       await addDoc(collection(db, 'inventario'), {
         ...newItem,
+        cantidad: parseInt(newItem.cantidad),
+        costo: parseFloat(newItem.costo),
+        precio: parseFloat(newItem.precio),
         ultimaActualizacion: new Date().toISOString()
       })
-      setNewItem({ id: '', nombre: '', stock: '', precioUnitario: '' })
+      setNewItem({ id: '', nombre: '', cantidad: '', costo: '', precio: '' })
       fetchInventario()
     } catch (error) {
       console.error('Error adding item:', error)
@@ -54,7 +57,13 @@ function Inventario({ userRole }) {
       alert('No tienes permisos para editar productos')
       return
     }
-    setNewItem(item)
+    setNewItem({
+      id: item.id || '',
+      nombre: item.nombre || '',
+      cantidad: item.cantidad || item.stock || '',
+      costo: item.costo || '',
+      precio: item.precio || ''
+    })
     setEditingId(item.docId)
   }
 
@@ -68,11 +77,12 @@ function Inventario({ userRole }) {
       await updateDoc(doc(db, 'inventario', editingId), {
         id: newItem.id,
         nombre: newItem.nombre,
-        stock: newItem.stock,
-        precioUnitario: newItem.precioUnitario,
+        cantidad: parseInt(newItem.cantidad),
+        costo: parseFloat(newItem.costo),
+        precio: parseFloat(newItem.precio),
         ultimaActualizacion: new Date().toISOString()
       })
-      setNewItem({ id: '', nombre: '', stock: '', precioUnitario: '' })
+      setNewItem({ id: '', nombre: '', cantidad: '', costo: '', precio: '' })
       setEditingId(null)
       fetchInventario()
     } catch (error) {
@@ -174,12 +184,12 @@ function Inventario({ userRole }) {
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Stock</label>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Cantidad</label>
               <input
                 type="number"
-                placeholder="Cantidad en stock"
-                value={newItem.stock}
-                onChange={(e) => setNewItem({ ...newItem, stock: e.target.value })}
+                placeholder="Cantidad en inventario"
+                value={newItem.cantidad}
+                onChange={(e) => setNewItem({ ...newItem, cantidad: e.target.value })}
                 style={{ 
                   width: '100%', 
                   padding: '12px', 
@@ -190,13 +200,34 @@ function Inventario({ userRole }) {
                 }}
               />
             </div>
+            {canAdd && userRole === 'admin' && (
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Costo</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Costo de compra"
+                  value={newItem.costo}
+                  onChange={(e) => setNewItem({ ...newItem, costo: e.target.value })}
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    border: '2px solid #FFB6C1', 
+                    borderRadius: '8px', 
+                    fontSize: '14px',
+                    boxSizing: 'border-box' 
+                  }}
+                />
+              </div>
+            )}
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Precio Unitario</label>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Precio de Venta</label>
               <input
                 type="number"
-                placeholder="Precio por unidad"
-                value={newItem.precioUnitario}
-                onChange={(e) => setNewItem({ ...newItem, precioUnitario: e.target.value })}
+                step="0.01"
+                placeholder="Precio de venta"
+                value={newItem.precio}
+                onChange={(e) => setNewItem({ ...newItem, precio: e.target.value })}
                 style={{ 
                   width: '100%', 
                   padding: '12px', 
@@ -263,56 +294,67 @@ function Inventario({ userRole }) {
         ) : (
           <div style={{ 
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-            gap: '20px',
-            width: '100%'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '15px',
+            width: '100%',
+            maxWidth: '1200px'
           }}>
             {inventario.map(item => (
               <div key={item.docId} style={{
-                padding: '20px',
+                padding: '15px',
                 background: '#fff',
                 border: '1px solid #e0e0e0',
                 borderRadius: '10px',
                 boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '10px'
+                flexDirection: 'column',
+                gap: '10px',
+                minHeight: 'auto',
+                overflow: 'hidden'
               }}>
-                <div style={{ flex: '1', minWidth: '250px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px', color: '#333' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px', color: '#333', wordWrap: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.nombre}
                   </div>
-                  <div style={{ color: '#666', marginBottom: '5px' }}>
+                  <div style={{ color: '#666', marginBottom: '5px', fontSize: '13px', wordWrap: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     <strong>ID:</strong> {item.id}
                   </div>
-                  <div style={{ display: 'flex', gap: '20px', fontSize: '14px' }}>
-                    <span style={{ color: item.stock > 0 ? '#28a745' : '#dc3545' }}>
-                      <strong>Stock:</strong> {item.stock}
-                    </span>
-                    <span style={{ color: '#007bff' }}>
-                      <strong>Precio:</strong> L.{item.precioUnitario}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '20px', fontSize: '14px' }}>
-                    <span style={{ color: '#666' }}>
-                      <strong>Última Actualización:</strong> {new Date(item.ultimaActualizacion).toLocaleString()}
-                    </span>
-                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
+                  <span style={{ color: (item.cantidad || item.stock) > 0 ? '#28a745' : '#dc3545' }}>
+                    <strong>Cant:</strong> {item.cantidad || item.stock}
+                  </span>
+                  {userRole === 'admin' && (
+                    <span style={{ color: '#ff6b35' }}>
+                      <strong>Costo:</strong> L.{item.costo || 0}
+                    </span>
+                  )}
+                  <span style={{ color: '#007bff' }}>
+                    <strong>Precio:</strong> L.{item.precio || 0}
+                  </span>
+                  {userRole === 'admin' && item.costo && item.precio && (
+                    <span style={{ color: '#28a745', fontSize: '12px' }}>
+                      <strong>Gan:</strong> L.{(item.precio - item.costo).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '12px', color: '#999', wordWrap: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <strong>Act:</strong> {new Date(item.ultimaActualizacion).toLocaleDateString()}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginTop: 'auto' }}>
                   {canEdit && (
                     <button 
                       onClick={() => handleEditItem(item)}
                       style={{
-                        padding: '8px 16px',
+                        padding: '6px 12px',
                         backgroundColor: '#007bff',
                         color: 'white',
                         border: 'none',
                         borderRadius: '5px',
                         cursor: 'pointer',
-                        fontSize: '14px'
+                        fontSize: '12px',
+                        flex: '1',
+                        minWidth: 0
                       }}
                     >
                       Editar
@@ -322,13 +364,15 @@ function Inventario({ userRole }) {
                     <button 
                       onClick={() => handleDeleteItem(item.docId)}
                       style={{
-                        padding: '8px 16px',
+                        padding: '6px 12px',
                         backgroundColor: '#dc3545',
                         color: 'white',
                         border: 'none',
                         borderRadius: '5px',
                         cursor: 'pointer',
-                        fontSize: '14px'
+                        fontSize: '12px',
+                        flex: '1',
+                        minWidth: 0
                       }}
                     >
                       Eliminar

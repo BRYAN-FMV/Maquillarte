@@ -1,4 +1,4 @@
-import { FaHome, FaList, FaBarcode, FaTimes, FaBars, FaUsers, FaSignOutAlt, FaUser, FaChartBar, FaFileAlt } from 'react-icons/fa'
+import { FaHome, FaList, FaBarcode, FaTimes, FaBars, FaUsers, FaSignOutAlt, FaUser, FaChartBar, FaFileAlt, FaTruck, FaDollarSign } from 'react-icons/fa'
 import { useState, useEffect } from 'react'
 
 function Sidebar({ setView, user, role, onLogout }) {
@@ -15,6 +15,10 @@ function Sidebar({ setView, user, role, onLogout }) {
   const canManageUsers = role === 'admin'
   // Solo admin y empleado pueden ver ventas
   const canViewSales = role === 'admin' || role === 'employee'
+  // Solo admin puede acceder a proveedores
+  const canAccessProviders = role === 'admin'
+  // Solo admin y empleado pueden acceder a gastos
+  const canAccessExpenses = role === 'admin' || role === 'employee'
 
   useEffect(() => {
     const handleResize = () => {
@@ -333,6 +337,56 @@ function Sidebar({ setView, user, role, onLogout }) {
                   onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
                 >
                   <FaFileAlt style={{ marginRight: '12px', fontSize: '18px' }} /> Reportes
+                </button>
+              </li>
+            )}
+            {canAccessProviders && (
+              <li style={{ marginBottom: '8px' }}>
+                <button 
+                  onClick={() => setView('providers')} 
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.1)', 
+                    border: 'none', 
+                    color: '#fff', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    width: '100%', 
+                    fontSize: '16px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    transition: 'all 0.2s ease',
+                    marginBottom: '4px'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                >
+                  <FaTruck style={{ marginRight: '12px', fontSize: '18px' }} /> Proveedores
+                </button>
+              </li>
+            )}
+            {canAccessExpenses && (
+              <li style={{ marginBottom: '8px' }}>
+                <button 
+                  onClick={() => setView('expenses')} 
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.1)', 
+                    border: 'none', 
+                    color: '#fff', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    width: '100%', 
+                    fontSize: '16px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    transition: 'all 0.2s ease',
+                    marginBottom: '4px'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                >
+                  <FaDollarSign style={{ marginRight: '12px', fontSize: '18px' }} /> Gastos
                 </button>
               </li>
             )}
