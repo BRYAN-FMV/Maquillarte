@@ -168,20 +168,21 @@ function NewSale({ onClose, user }) {
               onChange={(e) => handleSearch(e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px',
+                padding: window.innerWidth < 600 ? '14px 12px' : '8px 12px',
                 border: '1px solid #ddd',
                 borderRadius: '6px',
-                fontSize: '13px',
-                boxSizing: 'border-box'
+                fontSize: window.innerWidth < 600 ? '16px' : '13px',
+                boxSizing: 'border-box',
+                minHeight: window.innerWidth < 600 ? '48px' : 'auto'
               }}
             />
             
             {/* Resultados de búsqueda - Sin position absolute */}
             {searchResults.length > 0 && (
               <div style={{
-                maxHeight: window.innerWidth < 600 ? '200px' : '180px',
+                maxHeight: window.innerWidth < 600 ? '240px' : '180px',
                 overflow: 'auto',
-                marginTop: '6px',
+                marginTop: '8px',
                 border: '1px solid #ddd',
                 borderRadius: '6px',
                 backgroundColor: 'white',
@@ -191,25 +192,26 @@ function NewSale({ onClose, user }) {
                   <div
                     key={product.docId}
                     style={{
-                      padding: '8px',
+                      padding: window.innerWidth < 600 ? '12px 10px' : '8px',
                       borderBottom: '1px solid #f0f0f0',
                       cursor: 'pointer',
                       display: 'grid',
                       gridTemplateColumns: '1fr auto',
-                      gap: '8px',
+                      gap: '10px',
                       alignItems: 'center',
-                      fontSize: '12px',
-                      background: 'white'
+                      fontSize: window.innerWidth < 600 ? '14px' : '12px',
+                      background: 'white',
+                      minHeight: window.innerWidth < 600 ? '50px' : 'auto'
                     }}
                     onClick={() => addToCart(product)}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
                   >
                     <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                      <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: window.innerWidth < 600 ? '15px' : '13px' }}>
                         {product.nombre}
                       </strong>
-                      <div style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: window.innerWidth < 600 ? '12px' : '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         ${product.precioUnitario} | Stock: {product.stock}
                       </div>
                     </div>
@@ -222,12 +224,13 @@ function NewSale({ onClose, user }) {
                         background: '#FF69B4',
                         border: 'none',
                         color: 'white',
-                        padding: '6px 10px',
+                        padding: window.innerWidth < 600 ? '12px 14px' : '6px 10px',
                         borderRadius: '4px',
-                        fontSize: '11px',
+                        fontSize: window.innerWidth < 600 ? '13px' : '11px',
                         cursor: 'pointer',
                         flexShrink: 0,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        minHeight: window.innerWidth < 600 ? '40px' : 'auto'
                       }}
                     >
                       Agregar
@@ -246,10 +249,10 @@ function NewSale({ onClose, user }) {
               backgroundColor: showScanner ? '#ff4757' : '#2196f3',
               color: 'white',
               border: 'none',
-              padding: window.innerWidth < 600 ? '10px 16px' : '8px 12px',
+              padding: window.innerWidth < 600 ? '14px 16px' : '8px 12px',
               borderRadius: '6px',
               cursor: 'pointer',
-              fontSize: '12px',
+              fontSize: window.innerWidth < 600 ? '14px' : '12px',
               fontWeight: 'bold',
               flexShrink: 0,
               display: 'flex',
@@ -257,7 +260,8 @@ function NewSale({ onClose, user }) {
               justifyContent: 'center',
               gap: '6px',
               whiteSpace: 'nowrap',
-              width: window.innerWidth < 600 ? '100%' : 'auto'
+              width: window.innerWidth < 600 ? '100%' : 'auto',
+              minHeight: window.innerWidth < 600 ? '44px' : 'auto'
             }}
           >
             <FaBarcode />

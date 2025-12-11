@@ -251,10 +251,10 @@ const Purchase = ({ user, onClose, onSuccess }) => {
       <div style={{
         backgroundColor: 'white',
         borderRadius: '12px',
-        padding: '20px',
-        width: '90%',
+        padding: window.innerWidth < 600 ? '10px' : '20px',
+        width: '95%',
         maxWidth: '700px',
-        maxHeight: '85vh',
+        maxHeight: window.innerWidth < 600 ? '95vh' : '85vh',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -264,14 +264,17 @@ const Purchase = ({ user, onClose, onSuccess }) => {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          marginBottom: '20px'
+          marginBottom: window.innerWidth < 600 ? '10px' : '20px',
+          paddingBottom: window.innerWidth < 600 ? '8px' : '0',
+          borderBottom: window.innerWidth < 600 ? '1px solid #eee' : 'none'
         }}>
           <h2 style={{ 
             color: '#333', 
             display: 'flex', 
             alignItems: 'center', 
-            gap: '10px',
-            margin: 0
+            gap: '8px',
+            margin: 0,
+            fontSize: window.innerWidth < 600 ? '16px' : '20px'
           }}>
             <FaShoppingCart style={{ color: '#e91e63' }} />
             Nueva Compra
@@ -311,11 +314,12 @@ const Purchase = ({ user, onClose, onSuccess }) => {
               required
               style={{
                 width: '100%',
-                padding: '10px',
+                padding: window.innerWidth < 600 ? '14px 12px' : '10px',
                 border: '1px solid #ddd',
                 borderRadius: '6px',
-                fontSize: '13px',
-                boxSizing: 'border-box'
+                fontSize: window.innerWidth < 600 ? '16px' : '13px',
+                boxSizing: 'border-box',
+                minHeight: window.innerWidth < 600 ? '48px' : 'auto'
               }}
             >
               <option value="">Seleccionar proveedor</option>
@@ -412,8 +416,8 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                   
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: item.isNew ? '1fr' : '2fr 0.8fr 0.8fr 0.7fr auto',
-                    gap: '8px',
+                    gridTemplateColumns: window.innerWidth < 600 ? '1fr' : (item.isNew ? '1fr' : '2fr 0.8fr 0.8fr 0.7fr auto'),
+                    gap: window.innerWidth < 600 ? '10px' : '8px',
                     alignItems: 'center',
                     marginBottom: item.isNew ? '10px' : '0'
                   }}>
@@ -422,10 +426,11 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                         value={item.id}
                         onChange={(e) => updatePurchaseItem(index, 'id', e.target.value)}
                         style={{
-                          padding: '6px',
+                          padding: window.innerWidth < 600 ? '12px' : '6px',
                           border: '1px solid #ccc',
                           borderRadius: '4px',
-                          fontSize: '12px'
+                          fontSize: window.innerWidth < 600 ? '15px' : '12px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto'
                         }}
                       >
                         <option value="">Seleccionar</option>
@@ -437,19 +442,26 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                         <option value="new">Nuevo</option>
                       </select>
                     ) : (
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: 0 }}>
+                      <div style={{ 
+                        display: window.innerWidth < 600 ? 'grid' : 'flex', 
+                        gridTemplateColumns: window.innerWidth < 600 ? '1fr auto' : undefined,
+                        gap: window.innerWidth < 600 ? '8px' : '6px', 
+                        alignItems: 'center', 
+                        minWidth: 0
+                      }}>
                         <input
                           type="text"
                           placeholder="Nombre"
                           value={item.nombre}
                           onChange={(e) => updatePurchaseItem(index, 'nombre', e.target.value)}
                           style={{
-                            padding: '6px',
+                            padding: window.innerWidth < 600 ? '12px' : '6px',
                             border: '1px solid #4caf50',
                             borderRadius: '3px',
                             flex: 1,
-                            fontSize: '12px',
-                            minWidth: 0
+                            fontSize: window.innerWidth < 600 ? '15px' : '12px',
+                            minWidth: 0,
+                            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
                           }}
                         />
                         <button
@@ -459,11 +471,15 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                             backgroundColor: '#2196f3',
                             color: 'white',
                             border: 'none',
-                            padding: '6px 8px',
+                            padding: window.innerWidth < 600 ? '12px 10px' : '6px 8px',
                             borderRadius: '3px',
                             cursor: 'pointer',
-                            fontSize: '11px',
-                            flexShrink: 0
+                            fontSize: window.innerWidth < 600 ? '14px' : '11px',
+                            flexShrink: 0,
+                            minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                           }}
                         >
                           <FaBarcode />
@@ -472,7 +488,12 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                     )}
 
                     {!item.isNew && (
-                      <>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: window.innerWidth < 600 ? '1fr 1fr' : '1fr',
+                        gap: window.innerWidth < 600 ? '10px' : '8px',
+                        gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
+                      }}>
                         <input
                           type="number"
                           placeholder="Cant"
@@ -480,10 +501,11 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                           onChange={(e) => updatePurchaseItem(index, 'cantidad', e.target.value)}
                           min="1"
                           style={{
-                            padding: '6px',
+                            padding: window.innerWidth < 600 ? '12px' : '6px',
                             border: '1px solid #ccc',
                             borderRadius: '4px',
-                            fontSize: '12px'
+                            fontSize: window.innerWidth < 600 ? '15px' : '12px',
+                            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
                           }}
                         />
 
@@ -495,10 +517,11 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                           onChange={(e) => updatePurchaseItem(index, 'costo', e.target.value)}
                           min="0"
                           style={{
-                            padding: '6px',
+                            padding: window.innerWidth < 600 ? '12px' : '6px',
                             border: '1px solid #ccc',
                             borderRadius: '4px',
-                            fontSize: '12px'
+                            fontSize: window.innerWidth < 600 ? '15px' : '12px',
+                            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
                           }}
                         />
 
@@ -508,7 +531,11 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                           borderRadius: '3px',
                           textAlign: 'center',
                           fontWeight: 'bold',
-                          fontSize: '11px'
+                          fontSize: window.innerWidth < 600 ? '12px' : '11px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
                         }}>
                           ${item.total.toFixed(2)}
                         </div>
@@ -520,15 +547,19 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                             backgroundColor: '#f44336',
                             color: 'white',
                             border: 'none',
-                            padding: '6px',
+                            padding: window.innerWidth < 600 ? '12px 10px' : '6px',
                             borderRadius: '3px',
                             cursor: 'pointer',
-                            fontSize: '11px'
+                            fontSize: window.innerWidth < 600 ? '14px' : '11px',
+                            minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                           }}
                         >
                           <FaTrash />
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
 
@@ -564,10 +595,11 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                         onChange={(e) => updatePurchaseItem(index, 'cantidad', e.target.value)}
                         min="1"
                         style={{
-                          padding: '6px',
+                          padding: window.innerWidth < 600 ? '12px' : '6px',
                           border: '1px solid #4caf50',
                           borderRadius: '3px',
-                          fontSize: '12px'
+                          fontSize: window.innerWidth < 600 ? '15px' : '12px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto'
                         }}
                       />
 
@@ -579,10 +611,11 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                         onChange={(e) => updatePurchaseItem(index, 'costo', e.target.value)}
                         min="0"
                         style={{
-                          padding: '6px',
+                          padding: window.innerWidth < 600 ? '12px' : '6px',
                           border: '1px solid #4caf50',
                           borderRadius: '3px',
-                          fontSize: '12px'
+                          fontSize: window.innerWidth < 600 ? '15px' : '12px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto'
                         }}
                       />
 
@@ -594,10 +627,11 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                         onChange={(e) => updatePurchaseItem(index, 'precio', e.target.value)}
                         min="0"
                         style={{
-                          padding: '6px',
+                          padding: window.innerWidth < 600 ? '12px' : '6px',
                           border: '1px solid #4caf50',
                           borderRadius: '3px',
-                          fontSize: '12px'
+                          fontSize: window.innerWidth < 600 ? '15px' : '12px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto'
                         }}
                       />
 
@@ -608,10 +642,14 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                           backgroundColor: '#f44336',
                           color: 'white',
                           border: 'none',
-                          padding: '6px',
+                          padding: window.innerWidth < 600 ? '12px 10px' : '6px',
                           borderRadius: '3px',
                           cursor: 'pointer',
-                          fontSize: '11px'
+                          fontSize: window.innerWidth < 600 ? '14px' : '11px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
                         }}
                       >
                         <FaTrash />
@@ -651,75 +689,86 @@ const Purchase = ({ user, onClose, onSuccess }) => {
             </div>
           </div>
 
-          {/* Total */}
-          {purchaseItems.length > 0 && (
-            <div style={{
-              backgroundColor: '#f0f8ff',
-              padding: '12px',
-              borderRadius: '6px',
-              marginBottom: '12px',
-              border: '1px solid #e0e0e0',
-              flexShrink: 0
-            }}>
+          {/* Total y Botones - Fijos en la parte inferior */}
+          <div style={{
+            borderTop: '1px solid #eee',
+            paddingTop: window.innerWidth < 600 ? '10px' : '12px',
+            marginTop: 'auto',
+            flexShrink: 0,
+            backgroundColor: 'white'
+          }}>
+            {purchaseItems.length > 0 && (
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                marginBottom: window.innerWidth < 600 ? '10px' : '12px',
+                padding: window.innerWidth < 600 ? '8px 10px' : '10px 12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '6px',
+                border: '1px solid #e0e0e0'
               }}>
-                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                <span style={{ fontWeight: 'bold', fontSize: window.innerWidth < 600 ? '14px' : '14px' }}>
                   Total:
                 </span>
                 <span style={{ 
                   fontWeight: 'bold', 
-                  fontSize: '16px',
+                  fontSize: window.innerWidth < 600 ? '18px' : '16px',
                   color: '#e91e63'
                 }}>
                   ${calculateTotal().toFixed(2)}
                 </span>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Botones */}
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                backgroundColor: '#666',
-                color: 'white',
-                border: 'none',
-                padding: '10px 18px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '13px'
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !selectedProvider || purchaseItems.length === 0}
-              style={{
-                backgroundColor: loading ? '#ccc' : '#4caf50',
-                color: 'white',
-                border: 'none',
-                padding: '10px 18px',
-                borderRadius: '6px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '13px'
-              }}
-            >
+            {/* Botones */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '10px', 
+              justifyContent: window.innerWidth < 600 ? 'stretch' : 'flex-end'
+            }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  backgroundColor: '#666',
+                  color: 'white',
+                  border: 'none',
+                  padding: window.innerWidth < 600 ? '12px 16px' : '10px 18px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: window.innerWidth < 600 ? '14px' : '13px',
+                  flex: window.innerWidth < 600 ? '1' : 'none'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={loading || !selectedProvider || purchaseItems.length === 0}
+                style={{
+                  backgroundColor: loading ? '#ccc' : '#4caf50',
+                  color: 'white',
+                  border: 'none',
+                  padding: window.innerWidth < 600 ? '12px 16px' : '10px 18px',
+                  borderRadius: '6px',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  fontSize: window.innerWidth < 600 ? '14px' : '13px',
+                  flex: window.innerWidth < 600 ? '1' : 'none'
+                }}
+              >
               {loading ? 'Procesando...' : (
                 <>
                   <FaCheck />
                   Registrar
                 </>
               )}
-            </button>
+              </button>
+            </div>
           </div>
         </form>
 
