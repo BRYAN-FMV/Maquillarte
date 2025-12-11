@@ -464,7 +464,7 @@ const Providers = ({ user }) => {
                       padding: '10px',
                       border: '1px solid #ddd',
                       borderRadius: '6px',
-                      fontSize: '14px'
+                      fontSize: '100px'
                     }}
                     placeholder="Nombre del producto"
                   />

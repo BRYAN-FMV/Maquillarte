@@ -50,15 +50,35 @@ function SalesCart({ items, onClose, onUpdateItems, user }) {
   }
 
   return (
-    <div style={{ maxWidth: '520px', margin: '0 auto', padding: '12px', background: '#fff', borderRadius: '8px' }}>
+    <div style={{ maxWidth: '520px', margin: '0 auto', padding: window.innerWidth < 600 ? '8px' : '12px', background: '#fff', borderRadius: '8px' }}>
       <h3>Carrito de Venta</h3>
       <div style={{ marginBottom: '8px' }}>
         <label>Nombre del cliente</label>
-        <input value={cliente} onChange={e => setCliente(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+        <input 
+          value={cliente} 
+          onChange={e => setCliente(e.target.value)} 
+          style={{ 
+            width: '100%', 
+            padding: window.innerWidth < 600 ? '12px' : '8px',
+            fontSize: window.innerWidth < 600 ? '15px' : '13px',
+            boxSizing: 'border-box',
+            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+          }} 
+        />
       </div>
       <div style={{ marginBottom: '8px' }}>
         <label>Tipo de entrega</label>
-        <select value={tipoEntrega} onChange={e => setTipoEntrega(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+        <select 
+          value={tipoEntrega} 
+          onChange={e => setTipoEntrega(e.target.value)} 
+          style={{ 
+            width: '100%', 
+            padding: window.innerWidth < 600 ? '12px' : '8px',
+            fontSize: window.innerWidth < 600 ? '15px' : '13px',
+            boxSizing: 'border-box',
+            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+          }}
+        >
           <option value="local">Local</option>
           <option value="nacional">Nacional</option>
           <option value="domicilio">Domicilio</option>
@@ -66,7 +86,17 @@ function SalesCart({ items, onClose, onUpdateItems, user }) {
       </div>
       <div style={{ marginBottom: '8px' }}>
         <label>Tipo de pago</label>
-        <select value={tipoPago} onChange={e => setTipoPago(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+        <select 
+          value={tipoPago} 
+          onChange={e => setTipoPago(e.target.value)} 
+          style={{ 
+            width: '100%', 
+            padding: window.innerWidth < 600 ? '12px' : '8px',
+            fontSize: window.innerWidth < 600 ? '15px' : '13px',
+            boxSizing: 'border-box',
+            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+          }}
+        >
           <option value="efectivo">Efectivo</option>
           <option value="tarjeta">Tarjeta</option>
         </select>
@@ -88,12 +118,29 @@ function SalesCart({ items, onClose, onUpdateItems, user }) {
                 max={it.stock} 
                 value={it.cantidad} 
                 onChange={e => updateCantidad(idx, e.target.value)} 
-                style={{ width: '60px', padding: '4px' }} 
+                style={{ 
+                  width: '60px', 
+                  padding: window.innerWidth < 600 ? '10px' : '4px',
+                  fontSize: window.innerWidth < 600 ? '14px' : '12px',
+                  minHeight: window.innerWidth < 600 ? '36px' : 'auto'
+                }} 
               />
             </div>
             <button 
               onClick={() => removeItem(idx)}
-              style={{ padding: '4px 8px', background: '#ff4444', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '3px' }}
+              style={{ 
+                padding: window.innerWidth < 600 ? '10px 12px' : '4px 8px', 
+                background: '#ff4444', 
+                color: 'white', 
+                border: 'none', 
+                cursor: 'pointer', 
+                borderRadius: '3px',
+                fontSize: window.innerWidth < 600 ? '14px' : '12px',
+                minHeight: window.innerWidth < 600 ? '36px' : 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
               title="Eliminar producto"
             >
               ×
@@ -106,10 +153,32 @@ function SalesCart({ items, onClose, onUpdateItems, user }) {
       {message && <div style={{ marginTop: '10px' }}>{message}</div>}
 
       <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-        <button onClick={handleFinalize} disabled={loading} style={{ padding: '10px 14px', background: '#FFB6C1', border: 'none', cursor: 'pointer' }}>
+        <button 
+          onClick={handleFinalize} 
+          disabled={loading} 
+          style={{ 
+            padding: window.innerWidth < 600 ? '14px 16px' : '10px 14px', 
+            background: '#FFB6C1', 
+            border: 'none', 
+            cursor: 'pointer',
+            fontSize: window.innerWidth < 600 ? '14px' : '13px',
+            flex: window.innerWidth < 600 ? 1 : 'auto',
+            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+          }}
+        >
           {loading ? 'Procesando...' : 'Finalizar Venta'}
         </button>
-        <button onClick={() => onClose && onClose()} style={{ padding: '10px 14px' }}>Cancelar</button>
+        <button 
+          onClick={() => onClose && onClose()} 
+          style={{ 
+            padding: window.innerWidth < 600 ? '14px 16px' : '10px 14px',
+            fontSize: window.innerWidth < 600 ? '14px' : '13px',
+            flex: window.innerWidth < 600 ? 1 : 'auto',
+            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+          }}
+        >
+          Cancelar
+        </button>
       </div>
     </div>
   )
