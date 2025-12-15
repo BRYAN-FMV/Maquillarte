@@ -1,5 +1,6 @@
 import { getFirestore, collection, doc, getDocs, query, where, runTransaction, updateDoc } from 'firebase/firestore'
 import { app } from '../firebase'
+import { getLocalDateStringFromISO } from '../utils/dateUtils'
 
 const db = getFirestore(app)
 
@@ -84,13 +85,13 @@ export const getSales = async (filters = {}) => {
     if (filters.startDate || filters.endDate) {
       ventas = ventas.filter(venta => {
         if (!venta.fechaHora) return false
-        
-        // Extraer la fecha del timestamp ISO (sin considerar hora/zona horaria)
-        const ventaDate = venta.fechaHora.split('T')[0]
-        
+
+        // Obtener la fecha en zona local para comparar con los filtros (YYYY-MM-DD)
+        const ventaDate = getLocalDateStringFromISO(venta.fechaHora)
+
         if (filters.startDate && ventaDate < filters.startDate) return false
         if (filters.endDate && ventaDate > filters.endDate) return false
-        
+
         return true
       })
     }

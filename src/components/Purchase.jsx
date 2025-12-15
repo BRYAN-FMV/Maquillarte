@@ -63,23 +63,25 @@ const Purchase = ({ user, onClose, onSuccess }) => {
     const updatedItems = [...purchaseItems]
     updatedItems[index][field] = value
     
-    // Si cambió el producto, obtener su nombre
+    // Si cambió el producto, obtener su nombre y datos
     if (field === 'id') {
       if (value === 'new') {
         // Marcar como nuevo producto
         updatedItems[index].isNew = true
         updatedItems[index].nombre = ''
+        updatedItems[index].precio = 0
       } else {
         // Producto existente
         updatedItems[index].isNew = false
         const selectedProduct = products.find(p => p.id === value)
         if (selectedProduct) {
           updatedItems[index].nombre = selectedProduct.nombre
+          updatedItems[index].precio = selectedProduct.precio || 0
         }
       }
     }
     
-    // Recalcular total del item
+    // Recalcular total del item (siempre basado en cantidad × costo)
     if (field === 'cantidad' || field === 'costo') {
       const cantidad = Number(updatedItems[index].cantidad || 0)
       const costo = Number(updatedItems[index].costo || 0)
@@ -190,7 +192,7 @@ const Purchase = ({ user, onClose, onSuccess }) => {
       if (item.isNew) {
         return !item.nombre || !item.cantidad || !item.costo || !item.precio
       } else {
-        return !item.id || !item.cantidad || !item.costo
+        return !item.id || !item.cantidad || !item.costo || !item.precio
       }
     })
     
@@ -212,7 +214,7 @@ const Purchase = ({ user, onClose, onSuccess }) => {
           nombre: item.nombre,
           cantidad: Number(item.cantidad),
           costo: Number(item.costo),
-          precio: item.isNew ? Number(item.precio) : null,
+          precio: Number(item.precio || 0), // Siempre enviar el precio
           total: Number(item.total),
           isNew: item.isNew
         })),
@@ -297,7 +299,6 @@ const Purchase = ({ user, onClose, onSuccess }) => {
           {/* Selección de Proveedor */}
           <div style={{ marginBottom: '15px', flexShrink: 0 }}>
             <label style={{ 
-              display: 'block', 
               marginBottom: '8px', 
               fontWeight: 'bold',
               display: 'flex',
@@ -416,7 +417,7 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                   
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: window.innerWidth < 600 ? '1fr' : (item.isNew ? '1fr' : '2fr 0.8fr 0.8fr 0.7fr auto'),
+                    gridTemplateColumns: window.innerWidth < 600 ? '1fr' : (item.isNew ? '1fr' : '2fr 0.8fr 0.8fr 0.8fr 0.7fr auto'),
                     gap: window.innerWidth < 600 ? '10px' : '8px',
                     alignItems: 'center',
                     marginBottom: item.isNew ? '10px' : '0'
@@ -488,24 +489,20 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                     )}
 
                     {!item.isNew && (
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: window.innerWidth < 600 ? '1fr 1fr' : '1fr',
-                        gap: window.innerWidth < 600 ? '10px' : '8px',
-                        gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
-                      }}>
+                      <>
                         <input
                           type="number"
-                          placeholder="Cant"
+                          placeholder="Cantidad"
                           value={item.cantidad}
                           onChange={(e) => updatePurchaseItem(index, 'cantidad', e.target.value)}
                           min="1"
                           style={{
-                            padding: window.innerWidth < 600 ? '12px' : '6px',
-                            border: '1px solid #ccc',
+                            padding: window.innerWidth < 600 ? '12px' : '8px',
+                            border: '1px solid #ddd',
                             borderRadius: '4px',
-                            fontSize: window.innerWidth < 600 ? '15px' : '12px',
-                            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+                            fontSize: window.innerWidth < 600 ? '15px' : '13px',
+                            minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                            gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
                           }}
                         />
 
@@ -517,25 +514,46 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                           onChange={(e) => updatePurchaseItem(index, 'costo', e.target.value)}
                           min="0"
                           style={{
-                            padding: window.innerWidth < 600 ? '12px' : '6px',
-                            border: '1px solid #ccc',
+                            padding: window.innerWidth < 600 ? '12px' : '8px',
+                            border: '1px solid #ddd',
                             borderRadius: '4px',
-                            fontSize: window.innerWidth < 600 ? '15px' : '12px',
-                            minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+                            fontSize: window.innerWidth < 600 ? '15px' : '13px',
+                            minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                            gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
+                          }}
+                        />
+
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="Precio"
+                          value={item.precio || ''}
+                          onChange={(e) => updatePurchaseItem(index, 'precio', e.target.value)}
+                          min="0"
+                          style={{
+                            padding: window.innerWidth < 600 ? '12px' : '8px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: window.innerWidth < 600 ? '15px' : '13px',
+                            minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                            gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
                           }}
                         />
 
                         <div style={{
-                          padding: '6px',
+                          padding: '8px',
                           backgroundColor: '#e8f5e8',
-                          borderRadius: '3px',
+                          borderRadius: '4px',
                           textAlign: 'center',
                           fontWeight: 'bold',
-                          fontSize: window.innerWidth < 600 ? '12px' : '11px',
+                          fontSize: window.innerWidth < 600 ? '13px' : '12px',
                           minHeight: window.innerWidth < 600 ? '44px' : 'auto',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
+                          justifyContent: 'center',
+                          color: '#2e7d32',
+                          border: '1px solid #4caf50',
+                          gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
                         }}>
                           ${item.total.toFixed(2)}
                         </div>
@@ -547,19 +565,20 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                             backgroundColor: '#f44336',
                             color: 'white',
                             border: 'none',
-                            padding: window.innerWidth < 600 ? '12px 10px' : '6px',
-                            borderRadius: '3px',
+                            padding: window.innerWidth < 600 ? '12px 10px' : '8px',
+                            borderRadius: '4px',
                             cursor: 'pointer',
-                            fontSize: window.innerWidth < 600 ? '14px' : '11px',
+                            fontSize: window.innerWidth < 600 ? '14px' : '12px',
                             minHeight: window.innerWidth < 600 ? '44px' : 'auto',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
                           }}
                         >
                           <FaTrash />
                         </button>
-                      </div>
+                      </>
                     )}
                   </div>
 
@@ -583,23 +602,24 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                   {item.isNew && (
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 1fr 1fr auto',
-                      gap: '8px',
+                      gridTemplateColumns: window.innerWidth < 600 ? '1fr 1fr' : '1fr 1fr 1fr auto',
+                      gap: window.innerWidth < 600 ? '10px' : '8px',
                       alignItems: 'center',
                       marginTop: '8px'
                     }}>
                       <input
                         type="number"
-                        placeholder="Cant"
+                        placeholder="Cantidad"
                         value={item.cantidad}
                         onChange={(e) => updatePurchaseItem(index, 'cantidad', e.target.value)}
                         min="1"
                         style={{
-                          padding: window.innerWidth < 600 ? '12px' : '6px',
+                          padding: window.innerWidth < 600 ? '12px' : '8px',
                           border: '1px solid #4caf50',
-                          borderRadius: '3px',
-                          fontSize: window.innerWidth < 600 ? '15px' : '12px',
-                          minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+                          borderRadius: '4px',
+                          fontSize: window.innerWidth < 600 ? '15px' : '13px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                          gridColumn: window.innerWidth < 600 ? '1 / 2' : 'auto'
                         }}
                       />
 
@@ -611,11 +631,12 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                         onChange={(e) => updatePurchaseItem(index, 'costo', e.target.value)}
                         min="0"
                         style={{
-                          padding: window.innerWidth < 600 ? '12px' : '6px',
+                          padding: window.innerWidth < 600 ? '12px' : '8px',
                           border: '1px solid #4caf50',
-                          borderRadius: '3px',
-                          fontSize: window.innerWidth < 600 ? '15px' : '12px',
-                          minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+                          borderRadius: '4px',
+                          fontSize: window.innerWidth < 600 ? '15px' : '13px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                          gridColumn: window.innerWidth < 600 ? '2 / 3' : 'auto'
                         }}
                       />
 
@@ -627,11 +648,12 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                         onChange={(e) => updatePurchaseItem(index, 'precio', e.target.value)}
                         min="0"
                         style={{
-                          padding: window.innerWidth < 600 ? '12px' : '6px',
+                          padding: window.innerWidth < 600 ? '12px' : '8px',
                           border: '1px solid #4caf50',
-                          borderRadius: '3px',
-                          fontSize: window.innerWidth < 600 ? '15px' : '12px',
-                          minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+                          borderRadius: '4px',
+                          fontSize: window.innerWidth < 600 ? '15px' : '13px',
+                          minHeight: window.innerWidth < 600 ? '44px' : 'auto',
+                          gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
                         }}
                       />
 
@@ -642,14 +664,15 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                           backgroundColor: '#f44336',
                           color: 'white',
                           border: 'none',
-                          padding: window.innerWidth < 600 ? '12px 10px' : '6px',
-                          borderRadius: '3px',
+                          padding: window.innerWidth < 600 ? '12px 10px' : '8px',
+                          borderRadius: '4px',
                           cursor: 'pointer',
-                          fontSize: window.innerWidth < 600 ? '14px' : '11px',
+                          fontSize: window.innerWidth < 600 ? '14px' : '12px',
                           minHeight: window.innerWidth < 600 ? '44px' : 'auto',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
+                          justifyContent: 'center',
+                          gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
                         }}
                       >
                         <FaTrash />

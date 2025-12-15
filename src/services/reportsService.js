@@ -285,6 +285,7 @@ const calculateExpensesMetrics = (expensesData) => {
 
   const categoryMap = {
     'compras': { category: 'Compras', color: '#e91e63' },
+    'inventario': { category: 'Inventario', color: '#e57373' },
     'operacion': { category: 'Operación', color: '#2196f3' },
     'marketing': { category: 'Marketing', color: '#ff9800' },
     'otros': { category: 'Otros', color: '#9c27b0' }
@@ -519,6 +520,24 @@ export const getFilteredReportsData = async (startDate, endDate) => {
     // Obtener datos de proveedores de Firestore
     const providersData = await getProvidersDataFromFirestore()
 
+    // Convertir compras a gastos con categoría 'Inventario' para reportes
+    const purchaseExpenses = (providersData || []).flatMap(provider => (
+      (provider.compras || []).map(compra => {
+        const fechaHora = compra.fechaHora || compra.fecha || new Date().toISOString()
+        return {
+          id: compra.id || `${provider.id}_compra_${Math.random().toString(36).substr(2,9)}`,
+          monto: Number(compra.total || compra.monto || 0),
+          fechaHora: fechaHora,
+          fecha: compra.fecha || getDateStringFromISO(compra.fechaHora) || fechaHora.split('T')[0],
+          categoria: 'Inventario',
+          descripcion: `Compra a ${provider.nombre || 'Proveedor'}`
+        }
+      })
+    ))
+
+    // Unir gastos de la colección 'gastos' con las compras convertidas
+    const mergedExpensesData = [ ...(allExpensesData || []), ...purchaseExpenses ]
+
     // Filtrar ventas por fecha - comparación simple de strings YYYY-MM-DD
     const filteredSales = allSalesData.filter(sale => {
       if (!sale.timestamp) {
@@ -534,7 +553,7 @@ export const getFilteredReportsData = async (startDate, endDate) => {
     })
 
     // Filtrar gastos por fecha - comparación simple de strings YYYY-MM-DD
-    const filteredExpenses = allExpensesData.filter(expense => {
+    const filteredExpenses = mergedExpensesData.filter(expense => {
       if (!expense.fechaHora && !expense.fecha) {
         return false
       }

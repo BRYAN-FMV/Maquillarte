@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { deleteExpense } from '../services/expensesService'
 
 const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
   const [filteredExpenses, setFilteredExpenses] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]); // Hoy por defecto
+  const [filterCategory, setFilterCategory] = useState('Todas'); // Nueva filtro por categoría
   const [formData, setFormData] = useState({
     fecha: new Date().toISOString().split('T')[0], // Fecha actual por defecto
     categoria: 'Operativos',
@@ -16,6 +18,7 @@ const Expenses = () => {
 
   const db = getFirestore();
   const categorias = ['Operativos', 'Inventario', 'Marketing', 'Personal', 'Otros'];
+  const categoriasFilter = ['Todas', ...categorias];
   const metodosPago = ['Efectivo', 'Tarjeta'];
 
   const fetchExpenses = useCallback(async () => {
@@ -26,26 +29,55 @@ const Expenses = () => {
         ...doc.data() 
       }));
       setExpenses(expensesData);
-      filterExpensesByDate(expensesData, filterDate);
+      // No filtrar aquí - el filtro se aplica por separado
     } catch (error) {
       console.error('Error fetching expenses:', error);
     }
-  }, [db, filterDate]);
+  }, [db]); // Solo depender de db, no de filterDate
 
-  const filterExpensesByDate = (expensesData, selectedDate) => {
-    const filtered = expensesData.filter(expense => expense.fecha === selectedDate);
-    setFilteredExpenses(filtered);
-  };
+  const filterExpensesByDate = (expensesData, selectedDate, selectedCategory = filterCategory) => {
+    let filtered = expensesData.filter(expense => {
+      // Si tiene campo fecha, comparar directamente
+      if (expense.fecha) {
+        return expense.fecha === selectedDate
+      }
+      // Si solo tiene fechaHora, extraer la fecha
+      if (expense.fechaHora) {
+        const expenseDate = expense.fechaHora.split('T')[0]
+        return expenseDate === selectedDate
+      }
+      // Si no tiene ninguna, no incluir
+      return false
+    })
+
+    // Aplicar filtro por categoría
+    if (selectedCategory !== 'Todas') {
+      filtered = filtered.filter(expense => expense.categoria === selectedCategory)
+    }
+
+    setFilteredExpenses(filtered)
+  }
 
   const handleDateFilterChange = (e) => {
     const selectedDate = e.target.value;
     setFilterDate(selectedDate);
-    filterExpensesByDate(expenses, selectedDate);
+  };
+
+  const handleCategoryFilterChange = (e) => {
+    const selectedCategory = e.target.value;
+    setFilterCategory(selectedCategory);
   };
 
   useEffect(() => {
     fetchExpenses();
   }, [fetchExpenses]);
+
+  // Aplicar filtros cuando cambien los datos, fecha o categoría
+  useEffect(() => {
+    if (expenses.length > 0) {
+      filterExpensesByDate(expenses, filterDate, filterCategory);
+    }
+  }, [expenses, filterDate, filterCategory]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -146,9 +178,15 @@ const Expenses = () => {
 
   const handleDelete = async (docId) => {
     try {
-      await deleteDoc(doc(db, 'gastos', docId));
-      fetchExpenses(); // Recargar la lista de gastos
-      alert('Gasto eliminado exitosamente');
+      const res = await deleteExpense(docId)
+      if (res && res.deleted) {
+        fetchExpenses(); // Recargar la lista de gastos
+        alert('Gasto eliminado exitosamente')
+      } else {
+        // Si no se encontró, recargar para mantener UI en sync
+        fetchExpenses()
+        alert('Gasto no encontrado o ya eliminado')
+      }
     } catch (error) {
       console.error('Error deleting expense:', error);
       alert('Error al eliminar el gasto: ' + error.message);
@@ -161,7 +199,7 @@ const Expenses = () => {
         {editingId ? 'Editar Gasto' : 'Registro de Gastos'}
       </h2>
 
-      {/* Filtro de Fecha */}
+      {/* Filtros */}
       <div style={{
         marginBottom: '15px',
         padding: '12px',
@@ -186,8 +224,25 @@ const Expenses = () => {
             fontSize: '12px'
           }}
         />
+        <select
+          value={filterCategory}
+          onChange={handleCategoryFilterChange}
+          style={{
+            padding: '6px 10px',
+            border: '1px solid #FFB6C1',
+            borderRadius: '5px',
+            fontSize: '12px'
+          }}
+        >
+          {categoriasFilter.map((categoria) => (
+            <option key={categoria} value={categoria}>
+              {categoria}
+            </option>
+          ))}
+        </select>
         <span style={{ color: '#666', fontSize: '12px' }}>
-          {new Date(filterDate + 'T00:00:00').toLocaleDateString('es-ES')}
+          {new Date(filterDate + 'T00:00:00').toLocaleDateString('es-ES')} 
+          {filterCategory !== 'Todas' && ` - ${filterCategory}`}
         </span>
       </div>
 
