@@ -45,6 +45,7 @@ function Reports({ role = 'admin' }) {
     }
   })
   const [loading, setLoading] = useState(false)
+  const [selectedExpenseCategories, setSelectedExpenseCategories] = useState([])
 
   const reportTypes = [
     {
@@ -128,6 +129,12 @@ function Reports({ role = 'admin' }) {
   useEffect(() => {
     generateReportData()
   }, [])
+
+  // Inicializar categorías seleccionadas cuando cambian los datos de gastos
+  useEffect(() => {
+    const cats = (reportData.expenses && reportData.expenses.expensesByCategory) ? reportData.expenses.expensesByCategory.map(c => c.category) : []
+    setSelectedExpenseCategories(cats)
+  }, [reportData.expenses && reportData.expenses.expensesByCategory])
 
   const exportReport = (format) => {
     exportReportData(reportData, format, selectedReport)
@@ -596,94 +603,111 @@ function Reports({ role = 'admin' }) {
     </div>
   )
 
-  const renderExpensesReport = () => (
-    <div style={{
-      background: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-      overflow: 'hidden'
-    }}>
+  const renderExpensesReport = () => {
+    const defaultExpenseCategories = ['Operativos', 'Inventario', 'Marketing', 'Personal', 'Otros']
+    const allCats = (reportData.expenses && reportData.expenses.expensesByCategory) ? reportData.expenses.expensesByCategory : []
+    const categoriesToShow = defaultExpenseCategories.map(cat => {
+      const found = allCats.find(c => c.category === cat)
+      return {
+        category: cat,
+        amount: found ? (found.amount || 0) : 0,
+        color: found ? (found.color || '#ff6b6b') : '#ff6b6b'
+      }
+    })
+    const allZero = categoriesToShow.every(c => c.amount === 0)
+
+    return (
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '15px',
-        padding: '20px'
+        background: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        overflow: 'hidden'
       }}>
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '15px',
-          background: '#f8f9fa',
-          borderRadius: '8px',
-          borderLeft: '4px solid #ff6b6b'
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '15px',
+          padding: '20px'
         }}>
           <div style={{
-            width: '45px',
-            height: '45px',
-            borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '1.3rem',
-            background: '#ff6b6b'
-          }}>
-            <FaShoppingBag />
-          </div>
-          <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
-              ${reportData.expenses.totalExpenses.toLocaleString()}
-            </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Gastos Totales</p>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding: '20px', borderTop: '1px solid #eee' }}>
-        <h3 style={{ marginBottom: '15px', color: '#2c3e50', fontSize: '14px' }}>Gastos por Categoría</h3>
-        {reportData.expenses.expensesByCategory.every(cat => cat.amount === 0) ? (
-          <div style={{
-            padding: '20px',
-            textAlign: 'center',
+            gap: '12px',
+            padding: '15px',
             background: '#f8f9fa',
             borderRadius: '8px',
-            color: '#666',
-            fontSize: '13px'
+            borderLeft: '4px solid #ff6b6b'
           }}>
-            <FaShoppingBag style={{ fontSize: '2.5rem', color: '#ddd', marginBottom: '12px' }} />
-            <p>No hay gastos registrados en el período seleccionado</p>
+            <div style={{
+              width: '45px',
+              height: '45px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '1.3rem',
+              background: '#ff6b6b'
+            }}>
+              <FaShoppingBag />
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
+                ${reportData.expenses.totalExpenses.toLocaleString()}
+              </h3>
+              <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Gastos Totales</p>
+            </div>
           </div>
-        ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '20px'
-          }}>
-            {reportData.expenses.expensesByCategory.map((category, index) => (
-              <div key={index} style={{
-                padding: '20px',
-                background: '#f8f9fa',
-                borderRadius: '10px',
-                borderLeft: `4px solid ${category.color}`
-              }}>
-                <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>{category.category}</h4>
-                <p style={{ margin: '0', fontSize: '1.8rem', fontWeight: 'bold', color: category.color }}>
-                  ${category.amount.toLocaleString()}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+        </div>
+
+        <div style={{ padding: '20px', borderTop: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '15px', color: '#2c3e50', fontSize: '14px' }}>Gastos por Categoría</h3>
+          {allZero ? (
+            <div style={{
+              padding: '20px',
+              textAlign: 'center',
+              background: '#f8f9fa',
+              borderRadius: '8px',
+              color: '#666',
+              fontSize: '13px'
+            }}>
+              <FaShoppingBag style={{ fontSize: '2.5rem', color: '#ddd', marginBottom: '12px' }} />
+              <p>No hay gastos registrados en el período seleccionado</p>
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '20px'
+            }}>
+              {categoriesToShow.map((category, index) => (
+                <div key={index} style={{
+                  padding: '20px',
+                  background: '#f8f9fa',
+                  borderRadius: '10px',
+                  borderLeft: `4px solid ${category.color}`
+                }}>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>{category.category}</h4>
+                  <p style={{ margin: '0', fontSize: '1.8rem', fontWeight: 'bold', color: category.color }}>
+                    ${category.amount.toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderProfitabilityReport = () => {
-    const totalRevenue = reportData.sales.totalRevenue
-    const totalExpenses = reportData.expenses.totalExpenses
-    const profit = totalRevenue - totalExpenses
-    const profitMargin = totalRevenue > 0 ? ((profit / totalRevenue) * 100).toFixed(2) : 0
+      const totalRevenue = reportData.sales.totalRevenue
+      const allExpenseCategories = reportData.expenses && reportData.expenses.expensesByCategory ? reportData.expenses.expensesByCategory : []
+      const totalExpenses = allExpenseCategories.reduce((sum, c) => (
+        selectedExpenseCategories.length === 0 || selectedExpenseCategories.includes(c.category) ? sum + (c.amount || 0) : sum
+      ), 0)
+      const profit = totalRevenue - totalExpenses
+      const profitMargin = totalRevenue > 0 ? ((profit / totalRevenue) * 100).toFixed(2) : 0
     
     return (
       <div style={{
@@ -692,6 +716,27 @@ function Reports({ role = 'admin' }) {
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
         overflow: 'hidden'
       }}>
+        <div style={{ padding: '12px 20px 0 20px' }}>
+          <label style={{ fontWeight: 600, marginRight: 10 }}>Filtrar Gastos:</label>
+          {(reportData.expenses.expensesByCategory || []).map((c, i) => (
+            <label key={i} style={{ marginRight: 12, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={selectedExpenseCategories.includes(c.category)}
+                onChange={() => {
+                  if (selectedExpenseCategories.includes(c.category)) {
+                    setSelectedExpenseCategories(selectedExpenseCategories.filter(x => x !== c.category))
+                  } else {
+                    setSelectedExpenseCategories([...selectedExpenseCategories, c.category])
+                  }
+                }}
+                style={{ marginRight: 6 }}
+              />
+              {c.category}
+            </label>
+          ))}
+        </div>
+
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
