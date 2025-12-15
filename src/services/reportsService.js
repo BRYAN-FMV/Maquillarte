@@ -64,7 +64,7 @@ const getInventoryDataFromFirestore = async () => {
     return inventarioSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      quantity: Number(doc.data().stock || 0),
+      quantity: Number(doc.data().cantidad || doc.data().stock || 0),
       minStock: Number(doc.data().minStock || 5)
     }))
   } catch (error) {
@@ -484,13 +484,13 @@ const calculateProfitabilityMetrics = (salesData, providersData, inventoryData) 
   // Calcular costo total del inventario
   const costoTotalInventario = inventoryData.reduce((sum, inv) => {
     const costo = productoCostos[inv.nombre] || 0
-    const cantidad = inv.stock || 0
+    const cantidad = inv.cantidad || inv.stock || 0
     return sum + (costo * cantidad)
   }, 0)
 
   const precioTotalInventario = inventoryData.reduce((sum, inv) => {
     const precio = inv.precio || 0
-    const cantidad = inv.stock || 0
+    const cantidad = inv.cantidad || inv.stock || 0
     return sum + (precio * cantidad)
   }, 0)
 

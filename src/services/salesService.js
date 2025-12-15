@@ -8,9 +8,17 @@ export const findProductByCode = async (productCode) => {
   try {
     const q = query(collection(db, 'inventario'), where('id', '==', productCode))
     const snap = await getDocs(q)
-    if (snap.empty) return null
+    if (snap.empty) {
+      return null
+    }
     const docSnap = snap.docs[0]
-    return { docId: docSnap.id, ...docSnap.data() }
+    const raw = docSnap.data()
+    const productData = { 
+      docId: docSnap.id, 
+      ...raw,
+      precioUnitario: Number(raw.precio || raw.precioUnitario || 0)
+    }
+    return productData
   } catch (error) {
     console.error('Error buscando producto:', error)
     throw error
@@ -33,7 +41,7 @@ export const createSaleTransaction = async (ventaEncData, detalles) => {
           throw new Error(`Producto no existe en inventario: ${det.nombre}`)
         }
         const productoData = snap.data()
-        const currentStock = Number(productoData.stock || 0)
+        const currentStock = Number(productoData.cantidad || productoData.stock || 0)
         const compraCantidad = Number(det.cantidad || 0)
         if (compraCantidad > currentStock) {
           throw new Error(`Stock insuficiente para ${det.nombre}. Disponible: ${currentStock}`)
@@ -48,11 +56,11 @@ export const createSaleTransaction = async (ventaEncData, detalles) => {
         const productoRef = productoRefs[i]
         const productoSnap = productoSnaps[i]
         const productoData = productoSnap.data()
-        const currentStock = Number(productoData.stock || 0)
+        const currentStock = Number(productoData.cantidad || productoData.stock || 0)
         const compraCantidad = Number(det.cantidad || 0)
         const newStock = currentStock - compraCantidad
 
-        transaction.update(productoRef, { stock: newStock, ultimaActualizacion: new Date().toISOString() })
+        transaction.update(productoRef, { cantidad: newStock, ultimaActualizacion: new Date().toISOString() })
 
         const ventaDetRef = doc(collection(db, 'ventaDet'))
         transaction.set(ventaDetRef, {
@@ -105,6 +113,19 @@ export const getSales = async (filters = {}) => {
       ventas = ventas.filter(venta => venta.tipoPago === filters.tipoPago)
     }
     
+    if (filters.banco) {
+      ventas = ventas.filter(venta => (venta.banco || '') === filters.banco)
+    }
+
+    if (filters.searchQuery) {
+      const q = String(filters.searchQuery).toLowerCase()
+      ventas = ventas.filter(venta => {
+        const nombre = String(venta.nombreCliente || '').toLowerCase()
+        const id = String(venta.id || '').toLowerCase()
+        return nombre.includes(q) || id.includes(q)
+      })
+    }
+    
     return ventas
   } catch (error) {
     console.error('Error obteniendo ventas:', error)
@@ -124,44 +145,151 @@ export const getSaleDetails = async (ventaId) => {
   }
 }
 
+// Actualizar encabezado y detalles de una venta, ajustando stock según diferencias
+export const updateSaleWithDetails = async (ventaId, ventaUpdates, updatedDetails = []) => {
+  try {
+    await runTransaction(db, async (transaction) => {
+      // Obtener detalles originales
+      const detailsQuery = query(collection(db, 'ventaDet'), where('idVentaEnc', '==', ventaId))
+      const detailsSnap = await getDocs(detailsQuery)
+      const originalDetails = detailsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+
+      // Mapear por id para comparaciones
+      const originalById = {}
+      for (const od of originalDetails) originalById[od.id] = od
+
+      // Procesar cada detalle original: si fue modificado, ajustar la diferencia; si fue eliminado, restaurar stock
+      for (const od of originalDetails) {
+        const updated = updatedDetails.find(u => u.id === od.id)
+        const productoRef = od.productoDocId ? doc(db, 'inventario', od.productoDocId) : null
+
+        if (updated) {
+          const newQty = Number(updated.cantidad || 0)
+          const oldQty = Number(od.cantidad || 0)
+          const diff = newQty - oldQty // positivo: aumentar venta (resta stock); negativo: disminuir venta (aumenta stock)
+
+          if (diff !== 0 && productoRef) {
+            const productoSnap = await transaction.get(productoRef)
+            if (!productoSnap.exists()) throw new Error(`Producto no existe en inventario: ${od.nombre}`)
+            const productoData = productoSnap.data()
+            const currentStock = Number(productoData.cantidad || productoData.stock || 0)
+
+            if (diff > 0 && currentStock < diff) {
+              throw new Error(`Stock insuficiente para ${od.nombre}. Disponible: ${currentStock}`)
+            }
+
+            const newStock = currentStock - diff
+            transaction.update(productoRef, { cantidad: newStock, ultimaActualizacion: new Date().toISOString() })
+          }
+
+          // Actualizar el detalle
+          const detRef = doc(db, 'ventaDet', od.id)
+          transaction.update(detRef, { cantidad: Number(updated.cantidad || 0), precioUnitario: Number(updated.precioUnitario || od.precioUnitario || 0) })
+        } else {
+          // detalle eliminado: restaurar stock
+          if (productoRef) {
+            const productoSnap = await transaction.get(productoRef)
+            if (productoSnap.exists()) {
+              const productoData = productoSnap.data()
+              const currentStock = Number(productoData.cantidad || productoData.stock || 0)
+              const restoreQty = Number(od.cantidad || 0)
+              transaction.update(productoRef, { cantidad: currentStock + restoreQty, ultimaActualizacion: new Date().toISOString() })
+            }
+          }
+          // eliminar detalle
+          transaction.delete(doc(db, 'ventaDet', od.id))
+        }
+      }
+
+      // Si hay nuevos detalles (sin id), agregarlos y disminuir stock
+      for (const ud of updatedDetails) {
+        if (!ud.id && ud.productoDocId) {
+          const productoRef = doc(db, 'inventario', ud.productoDocId)
+          const productoSnap = await transaction.get(productoRef)
+          if (!productoSnap.exists()) throw new Error(`Producto no existe en inventario: ${ud.nombre}`)
+          const productoData = productoSnap.data()
+          const currentStock = Number(productoData.cantidad || productoData.stock || 0)
+          const qty = Number(ud.cantidad || 0)
+          if (currentStock < qty) throw new Error(`Stock insuficiente para ${ud.nombre}. Disponible: ${currentStock}`)
+          transaction.update(productoRef, { cantidad: currentStock - qty, ultimaActualizacion: new Date().toISOString() })
+
+          const ventaDetRef = doc(collection(db, 'ventaDet'))
+          transaction.set(ventaDetRef, {
+            idVentaEnc: ventaId,
+            productoId: ud.id || ud.productoId || '',
+            productoDocId: ud.productoDocId,
+            nombre: ud.nombre,
+            precioUnitario: Number(ud.precioUnitario || 0),
+            cantidad: Number(qty)
+          })
+        }
+      }
+
+      // Recalcular total y actualizar encabezado
+      const finalDetails = updatedDetails.filter(d => Number(d.cantidad || 0) > 0)
+      const newTotal = finalDetails.reduce((s, d) => s + (Number(d.precioUnitario || 0) * Number(d.cantidad || 0)), 0)
+      const ventaRef = doc(db, 'ventaEnc', ventaId)
+      transaction.update(ventaRef, { ...ventaUpdates, total: newTotal, ultimaActualizacion: new Date().toISOString() })
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error actualizando venta y detalles:', error)
+    return { success: false, error: error.message }
+  }
+}
+
 // Eliminar una venta (ventaEnc y sus ventaDet) y restaurar stock
 export const deleteSale = async (ventaId) => {
   try {
-    const result = await runTransaction(db, async (transaction) => {
-      // Obtener detalles de la venta para restaurar stock
-      const detailsQuery = query(collection(db, 'ventaDet'), where('idVentaEnc', '==', ventaId))
-      const detailsSnap = await getDocs(detailsQuery)
+    // Primero obtener los detalles fuera de la transacción
+    const detailsQuery = query(collection(db, 'ventaDet'), where('idVentaEnc', '==', ventaId))
+    const detailsSnap = await getDocs(detailsQuery)
+    const details = detailsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
 
-      // Preparar lecturas
+    // Ahora ejecutar la transacción
+    await runTransaction(db, async (transaction) => {
+      // Primero leer todos los productos para validar y obtener stock actual
       const stockUpdates = []
-      const deleteDetails = []
 
-      for (const detDoc of detailsSnap.docs) {
-        const detail = detDoc.data()
-        const productoRef = doc(db, 'inventario', detail.productoDocId)
-        const productoSnap = await transaction.get(productoRef)
+      for (const detail of details) {
+        if (detail.productoDocId) {
+          const productoRef = doc(db, 'inventario', detail.productoDocId)
+          const productoSnap = await transaction.get(productoRef)
 
-        if (productoSnap.exists()) {
-          const productoData = productoSnap.data()
-          const currentStock = Number(productoData.stock || 0)
-          const restoreQty = Number(detail.cantidad || 0)
-          stockUpdates.push({ ref: productoRef, newStock: currentStock + restoreQty })
+          if (productoSnap.exists()) {
+            const productoData = productoSnap.data()
+            const currentStock = Number(productoData.cantidad || productoData.stock || 0)
+            const restoreQty = Number(detail.cantidad || 0)
+            stockUpdates.push({ 
+              ref: productoRef, 
+              newStock: currentStock + restoreQty,
+              productName: detail.nombre,
+              restoreQty
+            })
+          } else {
+            console.warn(`Producto no encontrado: ${detail.productoDocId} (${detail.nombre})`)
+          }
         }
-
-        deleteDetails.push(detDoc.id)
       }
 
-      // Ejecutar escrituras
+      // Actualizar stock de todos los productos
       for (const update of stockUpdates) {
-        transaction.update(update.ref, { stock: update.newStock })
+        transaction.update(update.ref, { 
+          cantidad: update.newStock, 
+          ultimaActualizacion: new Date().toISOString() 
+        })
       }
 
-      for (const detailId of deleteDetails) {
-        transaction.delete(doc(db, 'ventaDet', detailId))
+      // Eliminar todos los detalles de la venta
+      for (const detail of details) {
+        transaction.delete(doc(db, 'ventaDet', detail.id))
       }
 
-      // Eliminar encabezado de venta
+      // Eliminar el encabezado de la venta
       transaction.delete(doc(db, 'ventaEnc', ventaId))
+
+      return { deletedDetails: details.length, stockUpdates: stockUpdates.length }
     })
 
     return { success: true }

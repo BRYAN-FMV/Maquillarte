@@ -118,7 +118,7 @@ const createNewProduct = async (productData) => {
       activo: true
     })
     
-    console.log(`Nuevo producto creado: ${productData.nombre} con cantidad ${cantidad}`)
+    
     
     // Retornar el ID del nuevo producto creado
     return docRef.id
@@ -148,7 +148,7 @@ const updateProductStock = async (productId, quantityToAdd) => {
         fechaActualizacion: new Date().toISOString()
       })
       
-      console.log(`Producto ${productId}: Stock actualizado de ${currentStock} a ${newStock}`)
+      
     } else {
       console.warn(`Producto ${productId} no encontrado en inventario`)
     }
@@ -174,7 +174,7 @@ const updateProductPrice = async (productId, newPrice) => {
         fechaActualizacion: new Date().toISOString()
       })
       
-      console.log(`Producto ${productId}: Precio actualizado a $${newPrice}`)
+      
     } else {
       console.warn(`Producto ${productId} no encontrado para actualizar precio`)
     }
