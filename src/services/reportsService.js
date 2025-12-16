@@ -513,13 +513,19 @@ export const getFilteredReportsData = async (startDate, endDate) => {
     // Obtener datos de inventario de Firestore
     const inventoryData = await getInventoryDataFromFirestore()
 
-    // Obtener datos de gastos de Firestore
+    // Obtener datos de gastos de Firestore (ya incluye compras como gastos de inventario)
     const allExpensesData = await getExpensesDataFromFirestore()
 
     // Obtener datos de proveedores de Firestore
     const providersData = await getProvidersDataFromFirestore()
 
+<<<<<<< Updated upstream
     // Filtrar ventas por fecha - comparación simple de strings YYYY-MM-DD
+=======
+    // Los gastos ya incluyen las compras registradas, no necesitamos duplicarlas
+
+    // Filtrar ventas por fecha usando la fecha local (YYYY-MM-DD)
+>>>>>>> Stashed changes
     const filteredSales = allSalesData.filter(sale => {
       if (!sale.timestamp) {
         return false
@@ -533,6 +539,7 @@ export const getFilteredReportsData = async (startDate, endDate) => {
       return saleDateString >= startDate && saleDateString <= endDate
     })
 
+<<<<<<< Updated upstream
     // Filtrar gastos por fecha - comparación simple de strings YYYY-MM-DD
     const filteredExpenses = allExpensesData.filter(expense => {
       if (!expense.fechaHora && !expense.fecha) {
@@ -541,6 +548,12 @@ export const getFilteredReportsData = async (startDate, endDate) => {
       
       // Usar fecha si existe, si no usar fechaHora
       let expenseDateString = expense.fecha || getDateStringFromISO(expense.fechaHora)
+=======
+    // Filtrar gastos por fecha - usar fecha local cuando haya timestamp
+    const filteredExpenses = allExpensesData.filter(expense => {
+      if (!expense.fechaHora && !expense.fecha) return false
+      const expenseDateString = expense.fecha || getLocalDateStringFromISO(expense.fechaHora)
+>>>>>>> Stashed changes
       if (!expenseDateString) return false
       
       // Comparar fechas como strings (YYYY-MM-DD)
