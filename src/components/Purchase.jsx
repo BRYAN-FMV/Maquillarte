@@ -555,7 +555,7 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                           border: '1px solid #4caf50',
                           gridColumn: window.innerWidth < 600 ? '1 / -1' : 'auto'
                         }}>
-                          ${item.total.toFixed(2)}
+                          L{item.total.toFixed(2)}
                         </div>
 
                         <button
@@ -690,7 +690,7 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                       fontWeight: 'bold',
                       fontSize: '11px'
                     }}>
-                      Total: ${item.total.toFixed(2)}
+                      Total: L{item.total.toFixed(2)}
                     </div>
                   )}
                 </div>
@@ -734,12 +734,12 @@ const Purchase = ({ user, onClose, onSuccess }) => {
                 <span style={{ fontWeight: 'bold', fontSize: window.innerWidth < 600 ? '14px' : '14px' }}>
                   Total:
                 </span>
-                <span style={{ 
+                  <span style={{ 
                   fontWeight: 'bold', 
                   fontSize: window.innerWidth < 600 ? '18px' : '16px',
                   color: '#e91e63'
                 }}>
-                  ${calculateTotal().toFixed(2)}
+                  L{calculateTotal().toFixed(2)}
                 </span>
               </div>
             )}

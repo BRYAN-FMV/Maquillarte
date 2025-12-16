@@ -25,16 +25,6 @@ function Reports({ role = 'admin' }) {
       totalExpenses: 0,
       expensesByCategory: []
     },
-    providers: {
-      totalProviders: 0,
-      totalProductos: 0,
-      proveedoresPrincipales: [],
-      analisisMargen: {
-        margenPromedio: 0,
-        productosAltaMargen: [],
-        productosBajaMargen: []
-      }
-    },
     profitability: {
       costopromedioVendido: 0,
       precioPromedio: 0,
@@ -46,6 +36,14 @@ function Reports({ role = 'admin' }) {
   })
   const [loading, setLoading] = useState(false)
   const [selectedExpenseCategories, setSelectedExpenseCategories] = useState([])
+
+  // Categorías de gastos esperadas (fallback) — las que enviaste: Operativos, Inventario, Marketing, Personal, Otros
+  const fallbackExpenseCategories = ['Operativos', 'Inventario', 'Marketing', 'Personal', 'Otros']
+
+  // Construir lista de categorías a mostrar: preferir las provenientes de reportData, si existen.
+  const expenseCategoriesToShow = (reportData.expenses && Array.isArray(reportData.expenses.expensesByCategory) && reportData.expenses.expensesByCategory.length > 0)
+    ? reportData.expenses.expensesByCategory.map(c => ({ category: c.category, amount: c.amount || 0, color: c.color || '#ff6b6b' }))
+    : fallbackExpenseCategories.map(cat => ({ category: cat, amount: 0, color: '#ff6b6b' }))
 
   const reportTypes = [
     {
@@ -61,18 +59,12 @@ function Reports({ role = 'admin' }) {
       description: 'Estado actual del inventario y productos'
     },
     // Solo admin puede ver los siguientes reportes:
-    ...(role === 'admin' ? [
+      ...(role === 'admin' ? [
       {
         id: 'expenses',
         name: 'Reporte de Gastos',
         icon: FaShoppingBag,
         description: 'Análisis de gastos por categoría'
-      },
-      {
-        id: 'providers',
-        name: 'Reporte de Proveedores',
-        icon: FaTruck,
-        description: 'Análisis de proveedores y márgenes de ganancia'
       },
       {
         id: 'profitability',
@@ -132,8 +124,10 @@ function Reports({ role = 'admin' }) {
 
   // Inicializar categorías seleccionadas cuando cambian los datos de gastos
   useEffect(() => {
-    const cats = (reportData.expenses && reportData.expenses.expensesByCategory) ? reportData.expenses.expensesByCategory.map(c => c.category) : []
-    setSelectedExpenseCategories(cats)
+    const catsFromData = (reportData.expenses && Array.isArray(reportData.expenses.expensesByCategory) && reportData.expenses.expensesByCategory.length > 0)
+      ? reportData.expenses.expensesByCategory.map(c => c.category)
+      : fallbackExpenseCategories.slice()
+    setSelectedExpenseCategories(catsFromData)
   }, [reportData.expenses && reportData.expenses.expensesByCategory])
 
   const exportReport = (format) => {
@@ -177,7 +171,7 @@ function Reports({ role = 'admin' }) {
           </div>
           <div>
             <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
-              ${reportData.sales.totalRevenue.toLocaleString()}
+              L{reportData.sales.totalRevenue.toLocaleString()}
             </h3>
             <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Ingresos Totales</p>
           </div>
@@ -237,7 +231,7 @@ function Reports({ role = 'admin' }) {
           </div>
           <div>
             <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
-              ${reportData.sales.averageTicket}
+              L{reportData.sales.averageTicket}
             </h3>
             <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Ticket Promedio</p>
           </div>
@@ -576,7 +570,7 @@ function Reports({ role = 'admin' }) {
           }}>
             <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Ventas</h4>
             <p style={{ margin: '5px 0', color: '#666', fontSize: '14px' }}>{reportData.sales.totalSales} transacciones</p>
-            <p style={{ margin: '5px 0', color: '#666', fontSize: '14px' }}>${reportData.sales.totalRevenue.toLocaleString()} en ingresos</p>
+            <p style={{ margin: '5px 0', color: '#666', fontSize: '14px' }}>L{reportData.sales.totalRevenue.toLocaleString()} en ingresos</p>
           </div>
           <div style={{
             padding: '20px',
@@ -604,16 +598,7 @@ function Reports({ role = 'admin' }) {
   )
 
   const renderExpensesReport = () => {
-    const defaultExpenseCategories = ['Operativos', 'Inventario', 'Marketing', 'Personal', 'Otros']
-    const allCats = (reportData.expenses && reportData.expenses.expensesByCategory) ? reportData.expenses.expensesByCategory : []
-    const categoriesToShow = defaultExpenseCategories.map(cat => {
-      const found = allCats.find(c => c.category === cat)
-      return {
-        category: cat,
-        amount: found ? (found.amount || 0) : 0,
-        color: found ? (found.color || '#ff6b6b') : '#ff6b6b'
-      }
-    })
+    const categoriesToShow = expenseCategoriesToShow
     const allZero = categoriesToShow.every(c => c.amount === 0)
 
     return (
@@ -653,7 +638,7 @@ function Reports({ role = 'admin' }) {
             </div>
             <div>
               <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
-                ${reportData.expenses.totalExpenses.toLocaleString()}
+                L{reportData.expenses.totalExpenses.toLocaleString()}
               </h3>
               <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Gastos Totales</p>
             </div>
@@ -689,7 +674,7 @@ function Reports({ role = 'admin' }) {
                 }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>{category.category}</h4>
                   <p style={{ margin: '0', fontSize: '1.8rem', fontWeight: 'bold', color: category.color }}>
-                    ${category.amount.toLocaleString()}
+                    L{category.amount.toLocaleString()}
                   </p>
                 </div>
               ))}
@@ -702,7 +687,7 @@ function Reports({ role = 'admin' }) {
 
   const renderProfitabilityReport = () => {
       const totalRevenue = reportData.sales.totalRevenue
-      const allExpenseCategories = reportData.expenses && reportData.expenses.expensesByCategory ? reportData.expenses.expensesByCategory : []
+      const allExpenseCategories = expenseCategoriesToShow || []
       const totalExpenses = allExpenseCategories.reduce((sum, c) => (
         selectedExpenseCategories.length === 0 || selectedExpenseCategories.includes(c.category) ? sum + (c.amount || 0) : sum
       ), 0)
@@ -718,7 +703,7 @@ function Reports({ role = 'admin' }) {
       }}>
         <div style={{ padding: '12px 20px 0 20px' }}>
           <label style={{ fontWeight: 600, marginRight: 10 }}>Filtrar Gastos:</label>
-          {(reportData.expenses.expensesByCategory || []).map((c, i) => (
+          {expenseCategoriesToShow.map((c, i) => (
             <label key={i} style={{ marginRight: 12, fontSize: 13 }}>
               <input
                 type="checkbox"
@@ -767,7 +752,7 @@ function Reports({ role = 'admin' }) {
             </div>
             <div>
               <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
-                ${profit.toLocaleString()}
+                L{profit.toLocaleString()}
               </h3>
               <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Ganancia Neta</p>
             </div>
@@ -819,7 +804,7 @@ function Reports({ role = 'admin' }) {
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Ingresos</h4>
               <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#4caf50' }}>
-                ${totalRevenue.toLocaleString()}
+                L{totalRevenue.toLocaleString()}
               </p>
             </div>
             <div style={{
@@ -830,7 +815,7 @@ function Reports({ role = 'admin' }) {
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Gastos</h4>
               <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#f44336' }}>
-                ${totalExpenses.toLocaleString()}
+                L{totalExpenses.toLocaleString()}
               </p>
             </div>
             <div style={{
@@ -841,7 +826,7 @@ function Reports({ role = 'admin' }) {
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Ganancia Neta</h4>
               <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: profit >= 0 ? '#4caf50' : '#f44336' }}>
-                ${profit.toLocaleString()}
+                L{profit.toLocaleString()}
               </p>
             </div>
           </div>
@@ -863,7 +848,7 @@ function Reports({ role = 'admin' }) {
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Costo Promedio</h4>
               <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#ff9800' }}>
-                ${reportData.profitability.costopromedioVendido.toLocaleString()}
+                L{reportData.profitability.costopromedioVendido.toLocaleString()}
               </p>
             </div>
             <div style={{
@@ -874,7 +859,7 @@ function Reports({ role = 'admin' }) {
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Precio Promedio</h4>
               <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#2196f3' }}>
-                ${reportData.profitability.precioPromedio.toLocaleString()}
+                L{reportData.profitability.precioPromedio.toLocaleString()}
               </p>
             </div>
             <div style={{
@@ -924,15 +909,56 @@ function Reports({ role = 'admin' }) {
                     <tr key={index} style={{ borderBottom: '1px solid #ddd' }}>
                       <td style={{ padding: '12px 15px', color: '#2c3e50', fontWeight: '500' }}>{producto.nombre}</td>
                       <td style={{ padding: '12px 15px', textAlign: 'center', color: '#666' }}>{producto.cantidadVendida}</td>
-                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#ff9800' }}>${producto.costoPorUnidad.toFixed(2)}</td>
-                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#2196f3' }}>${producto.precioPorUnidad.toFixed(2)}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#ff9800' }}>L{producto.costoPorUnidad.toFixed(2)}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#2196f3' }}>L{producto.precioPorUnidad.toFixed(2)}</td>
                       <td style={{ padding: '12px 15px', textAlign: 'right', color: '#4caf50', fontWeight: 'bold' }}>{producto.margenPorcentaje.toFixed(1)}%</td>
-                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#4caf50', fontWeight: 'bold' }}>${producto.gananciaTotal.toLocaleString()}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#4caf50', fontWeight: 'bold' }}>L{producto.gananciaTotal.toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+
+        {/* Sección: Top 10 menos vendidos */}
+        <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Top 10 Productos menos vendidos</h3>
+          {((reportData.profitability && reportData.profitability.productosVendidos) || []).length === 0 ? (
+            <div style={{
+              padding: '40px',
+              textAlign: 'center',
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              color: '#666'
+            }}>
+              <FaBox style={{ fontSize: '3rem', color: '#ddd', marginBottom: '15px' }} />
+              <p>No hay productos vendidos para analizar</p>
+            </div>
+          ) : (
+            (() => {
+              const leastSold = (reportData.profitability.productosVendidos || []).slice().sort((a, b) => a.cantidadVendida - b.cantidadVendida).slice(0, 10)
+              return (
+                <div style={{ background: '#f8f9fa', borderRadius: '10px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead style={{ background: '#e0e0e0' }}>
+                      <tr>
+                        <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold', borderBottom: '2px solid #999' }}>Producto</th>
+                        <th style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', borderBottom: '2px solid #999' }}>Cantidad</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leastSold.map((p, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
+                          <td style={{ padding: '12px 15px', color: '#2c3e50', fontWeight: '500' }}>{p.nombre}</td>
+                          <td style={{ padding: '12px 15px', textAlign: 'center', color: '#666' }}>{p.cantidadVendida}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })()
           )}
         </div>
 
@@ -951,7 +977,7 @@ function Reports({ role = 'admin' }) {
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Costo Total en Stock</h4>
               <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#ff9800' }}>
-                ${reportData.profitability.costoTotalInventario.toLocaleString()}
+                L{reportData.profitability.costoTotalInventario.toLocaleString()}
               </p>
             </div>
             <div style={{
@@ -962,7 +988,7 @@ function Reports({ role = 'admin' }) {
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Valor de Venta Potencial</h4>
               <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#2196f3' }}>
-                ${reportData.profitability.precioTotalInventario.toLocaleString()}
+                L{reportData.profitability.precioTotalInventario.toLocaleString()}
               </p>
             </div>
             <div style={{
@@ -973,7 +999,7 @@ function Reports({ role = 'admin' }) {
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Ganancia Potencial</h4>
               <p style={{ margin: '0', fontSize: '1.5rem', fontWeight: 'bold', color: '#4caf50' }}>
-                ${(reportData.profitability.precioTotalInventario - reportData.profitability.costoTotalInventario).toLocaleString()}
+                L{(reportData.profitability.precioTotalInventario - reportData.profitability.costoTotalInventario).toLocaleString()}
               </p>
             </div>
           </div>
@@ -982,216 +1008,7 @@ function Reports({ role = 'admin' }) {
     )
   }
 
-  const renderProvidersReport = () => (
-    <div style={{
-      background: 'white',
-      borderRadius: '12px',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-      overflow: 'hidden'
-    }}>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '15px',
-        padding: '20px'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '15px',
-          background: '#f8f9fa',
-          borderRadius: '8px',
-          borderLeft: '4px solid #2196f3'
-        }}>
-          <div style={{
-            width: '45px',
-            height: '45px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '1.3rem',
-            background: '#2196f3'
-          }}>
-            <FaTruck />
-          </div>
-          <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.6rem', color: '#2c3e50' }}>
-              {reportData.providers.totalProviders}
-            </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '12px' }}>Proveedores Activos</p>
-          </div>
-        </div>
-        
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '15px',
-          background: '#f8f9fa',
-          borderRadius: '8px',
-          borderLeft: '4px solid #ff9800'
-        }}>
-          <div style={{
-            width: '45px',
-            height: '45px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '1.3rem',
-            background: '#ff9800'
-          }}>
-            <FaBox />
-          </div>
-          <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
-              {reportData.providers.totalProductos}
-            </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Productos Disponibles</p>
-          </div>
-        </div>
-        
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '15px',
-          padding: '20px',
-          background: '#f8f9fa',
-          borderRadius: '10px',
-          borderLeft: '4px solid #4caf50'
-        }}>
-          <div style={{
-            width: '50px',
-            height: '50px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '1.5rem',
-            background: '#4caf50'
-          }}>
-            <FaChartBar />
-          </div>
-          <div>
-            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.8rem', color: '#2c3e50' }}>
-              {reportData.providers.analisisMargen.margenPromedio}%
-            </h3>
-            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Margen Promedio</p>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
-        <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Proveedores Principales</h3>
-        {reportData.providers.proveedoresPrincipales.length === 0 ? (
-          <div style={{
-            padding: '40px',
-            textAlign: 'center',
-            background: '#f8f9fa',
-            borderRadius: '10px',
-            color: '#666'
-          }}>
-            <FaTruck style={{ fontSize: '3rem', color: '#ddd', marginBottom: '15px' }} />
-            <p>No hay proveedores registrados</p>
-          </div>
-        ) : (
-          <div style={{
-            background: '#f8f9fa',
-            borderRadius: '10px',
-            overflow: 'hidden'
-          }}>
-            {reportData.providers.proveedoresPrincipales.map((provider, index) => (
-              <div key={index} style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '15px 20px',
-                borderBottom: index < reportData.providers.proveedoresPrincipales.length - 1 ? '1px solid #eee' : 'none'
-              }}>
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: '0 0 5px 0', color: '#2c3e50' }}>{provider.nombre}</h4>
-                  <p style={{ margin: '0', fontSize: '12px', color: '#666' }}>
-                    {provider.totalProductos} productos • {provider.cantidadCompras} compras
-                  </p>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ margin: '0', fontSize: '1.2rem', fontWeight: 'bold', color: '#2196f3' }}>
-                    ${provider.montoCompras.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={{ padding: '30px', borderTop: '1px solid #eee' }}>
-        <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Análisis de Márgenes de Ganancia</h3>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '20px'
-        }}>
-          <div style={{
-            padding: '20px',
-            background: '#f8f9fa',
-            borderRadius: '10px',
-            borderLeft: '4px solid #4caf50'
-          }}>
-            <h4 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>Productos con Alto Margen (≥50%)</h4>
-            {reportData.providers.analisisMargen.productosAltaMargen.length === 0 ? (
-              <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Sin productos con alto margen</p>
-            ) : (
-              reportData.providers.analisisMargen.productosAltaMargen.map((product, index) => (
-                <div key={index} style={{ 
-                  padding: '10px 0', 
-                  borderBottom: index < reportData.providers.analisisMargen.productosAltaMargen.length - 1 ? '1px solid #eee' : 'none',
-                  fontSize: '13px'
-                }}>
-                  <p style={{ margin: '0 0 3px 0', fontWeight: '500', color: '#2c3e50' }}>{product.nombre}</p>
-                  <p style={{ margin: '0 0 3px 0', color: '#666' }}>Proveedor: {product.proveedor}</p>
-                  <p style={{ margin: '0', color: '#4caf50', fontWeight: 'bold' }}>
-                    Margen: {product.margen.toFixed(1)}%
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div style={{
-            padding: '20px',
-            background: '#f8f9fa',
-            borderRadius: '10px',
-            borderLeft: '4px solid #ff9800'
-          }}>
-            <h4 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>Productos con Bajo Margen (&lt;20%)</h4>
-            {reportData.providers.analisisMargen.productosBajaMargen.length === 0 ? (
-              <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>Sin productos con bajo margen</p>
-            ) : (
-              reportData.providers.analisisMargen.productosBajaMargen.map((product, index) => (
-                <div key={index} style={{ 
-                  padding: '10px 0', 
-                  borderBottom: index < reportData.providers.analisisMargen.productosBajaMargen.length - 1 ? '1px solid #eee' : 'none',
-                  fontSize: '13px'
-                }}>
-                  <p style={{ margin: '0 0 3px 0', fontWeight: '500', color: '#2c3e50' }}>{product.nombre}</p>
-                  <p style={{ margin: '0 0 3px 0', color: '#666' }}>Proveedor: {product.proveedor}</p>
-                  <p style={{ margin: '0', color: '#ff9800', fontWeight: 'bold' }}>
-                    Margen: {product.margen.toFixed(1)}%
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  
 
   const renderReportContent = () => {
     switch (selectedReport) {
@@ -1203,8 +1020,6 @@ function Reports({ role = 'admin' }) {
         return renderExpensesReport()
       case 'profitability':
         return renderProfitabilityReport()
-      case 'providers':
-        return renderProvidersReport()
       default:
         return renderSalesReport()
     }

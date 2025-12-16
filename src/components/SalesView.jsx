@@ -298,8 +298,8 @@ function SalesView({ userRole, onNavigate, user }) {
       </div>
 
       {/* Total General */}
-      <div style={{ background: '#e8f5e8', padding: '12px', borderRadius: '6px', marginBottom: '15px', width: '100%', boxSizing: 'border-box', fontSize: '13px' }}>
-        <h3 style={{ margin: '0 0 5px 0', fontSize: '15px' }}>Total General: L.{totalGeneral.toFixed(2)}</h3>
+        <div style={{ background: '#e8f5e8', padding: '12px', borderRadius: '6px', marginBottom: '15px', width: '100%', boxSizing: 'border-box', fontSize: '13px' }}>
+          <h3 style={{ margin: '0 0 5px 0', fontSize: '15px' }}>Total General: L{totalGeneral.toFixed(2)}</h3>
         <p style={{ margin: 0, fontSize: '12px' }}>Mostrando {ventas.length} venta(s)</p>
       </div>
 
@@ -403,7 +403,7 @@ function SalesView({ userRole, onNavigate, user }) {
                                         style={{ width: '70px', padding: '4px' }}
                                       />
                                     </td>
-                                    <td style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd' }}>${Number(det.precioUnitario || 0).toFixed(2)}</td>
+                                                  <td style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd' }}>L{Number(det.precioUnitario || 0).toFixed(2)}</td>
                                     <td style={{ padding: '6px', textAlign: 'center', border: '1px solid #ddd' }}>
                                       <button onClick={() => {
                                         setEditDetails(prev => {
@@ -430,7 +430,7 @@ function SalesView({ userRole, onNavigate, user }) {
                   </div>
                   <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div>
-                      <div style={{ fontSize: '18px', fontWeight: 'bold' }}>${Number(venta.total || 0).toFixed(2)}</div>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold' }}>L{Number(venta.total || 0).toFixed(2)}</div>
                       <div 
                         style={{ fontSize: '12px', color: '#666', cursor: 'pointer' }}
                         onClick={() => toggleSaleDetails(venta.id)}
@@ -474,8 +474,8 @@ function SalesView({ userRole, onNavigate, user }) {
                           <tr key={detalle.id}>
                             <td style={{ padding: '6px', border: '1px solid #ddd', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detalle.nombre}</td>
                             <td style={{ padding: '6px', textAlign: 'center', border: '1px solid #ddd' }}>{detalle.cantidad}</td>
-                            <td style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd' }}>${Number(detalle.precioUnitario || 0).toFixed(2)}</td>
-                            <td style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd' }}>${(Number(detalle.precioUnitario || 0) * Number(detalle.cantidad || 0)).toFixed(2)}</td>
+                                    <td style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd' }}>L{Number(detalle.precioUnitario || 0).toFixed(2)}</td>
+                                    <td style={{ padding: '6px', textAlign: 'right', border: '1px solid #ddd' }}>L{(Number(detalle.precioUnitario || 0) * Number(detalle.cantidad || 0)).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
