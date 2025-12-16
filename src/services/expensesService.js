@@ -254,6 +254,64 @@ export const getFinancialMetrics = async (startDate, endDate) => {
   }
 }
 
+// Eliminar gasto; si está vinculado a una compra, eliminar también la compra asociada
+export const deleteExpense = async (expenseId) => {
+  try {
+    const expenseRef = doc(db, 'gastos', expenseId)
+    const expenseSnap = await getDoc(expenseRef)
+    if (!expenseSnap.exists()) return { deleted: false }
+
+    const expense = expenseSnap.data()
+
+    // Si tiene purchaseId explícito, usar deletePurchase para restaurar inventario
+    if (expense.purchaseId) {
+      try {
+        await deletePurchase(expense.purchaseId)
+      } catch (e) {
+        console.warn('No se pudo eliminar compra vinculada por purchaseId:', e)
+        // Si falla deletePurchase, al menos eliminar el documento de compra
+        try {
+          await deleteDoc(doc(db, 'compras', expense.purchaseId))
+        } catch (e2) {
+          console.warn('Tampoco se pudo eliminar doc de compra directamente:', e2)
+        }
+      }
+    } else if ((expense.categoria === 'inventario' || expense.categoria === 'compras') && expense.idProveedor && expense.monto) {
+      // Fallback: intentar encontrar una compra con mismo proveedor y total en la misma fecha
+      try {
+        const purchasesQuery = query(
+          collection(db, 'compras'),
+          where('idProveedor', '==', expense.idProveedor),
+          where('total', '==', Number(expense.monto)),
+          orderBy('fechaHora', 'desc'),
+          limit(5)
+        )
+        const purchasesSnap = await getDocs(purchasesQuery)
+        if (!purchasesSnap.empty) {
+          for (const candidate of purchasesSnap.docs) {
+            const compraFecha = candidate.data().fechaHora ? new Date(candidate.data().fechaHora).toISOString().split('T')[0] : null
+            const gastoFecha = expense.fechaHora ? new Date(expense.fechaHora).toISOString().split('T')[0] : (expense.fecha || null)
+            if (compraFecha && gastoFecha && compraFecha === gastoFecha) {
+              // Usar deletePurchase en lugar de deleteDoc para restaurar inventario
+              await deletePurchase(candidate.id)
+              break
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Fallback eliminación compra no tuvo éxito:', e)
+      }
+    }
+
+    // Finalmente eliminar el gasto
+    await deleteDoc(expenseRef)
+    return { deleted: true }
+  } catch (error) {
+    console.error('Error eliminando gasto:', error)
+    throw error
+  }
+}
+
 // Eliminar compra y restaurar inventario (y gasto asociado si se encuentra)
 export const deletePurchase = async (purchaseId) => {
   try {
