@@ -162,7 +162,7 @@ function SalesCart({ items, onClose, onUpdateItems, user, onSaleCompleted }) {
               <strong>{it.nombre}</strong>
               <div style={{ fontSize: '12px', color: '#666' }}>Stock disponible: {it.stockActual || it.stockOriginal || it.cantidadInventario || 0}</div>
             </div>
-            <div style={{ fontSize: '14px' }}>${it.precioUnitario}</div>
+            <div style={{ fontSize: '14px' }}>L{Number(it.precioUnitario || 0).toFixed(2)}</div>
             <div>
               <input 
                 type="number" 
@@ -199,7 +199,7 @@ function SalesCart({ items, onClose, onUpdateItems, user, onSaleCompleted }) {
             </button>
           </div>
         ))}
-        <div style={{ marginTop: '12px', fontWeight: 700, fontSize: '16px' }}>Total: L.{total.toFixed(2)}</div>
+        <div style={{ marginTop: '12px', fontWeight: 700, fontSize: '16px' }}>Total: L{total.toFixed(2)}</div>
       </div>
 
       {message && <div style={{ marginTop: '10px' }}>{message}</div>}

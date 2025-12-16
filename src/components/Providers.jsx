@@ -456,7 +456,7 @@ const Providers = ({ user }) => {
                         color: '#4caf50',
                         textAlign: 'right'
                       }}>
-                        ${purchase.total.toLocaleString()}
+                        L{purchase.total.toLocaleString()}
                       </div>
                       <div style={{ textAlign: 'center' }}>
                         <details style={{ cursor: 'pointer' }}>
@@ -484,7 +484,7 @@ const Providers = ({ user }) => {
                                 borderBottom: prodIndex < purchase.productos.length - 1 ? '1px solid #ddd' : 'none'
                               }}>
                                 <span>{producto.nombre}</span>
-                                <span>Cant: {producto.cantidad} | ${producto.costo}/u</span>
+                                <span>Cant: {producto.cantidad} | L{producto.costo}/u</span>
                               </div>
                             ))}
                           </div>
@@ -493,7 +493,7 @@ const Providers = ({ user }) => {
                     </div>
                   ))}
                   
-                  <div style={{
+                    <div style={{
                     marginTop: '20px',
                     padding: '15px',
                     backgroundColor: '#e8f5e8',
@@ -501,7 +501,7 @@ const Providers = ({ user }) => {
                     textAlign: 'right'
                   }}>
                     <strong>
-                      Total gastado: $
+                      Total gastado: L
                       {selectedProviderPurchases.reduce((sum, purchase) => sum + purchase.total, 0).toLocaleString()}
                     </strong>
                   </div>
