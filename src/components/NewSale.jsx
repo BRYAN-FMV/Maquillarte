@@ -25,7 +25,18 @@ function NewSale({ onClose, user }) {
       const querySnapshot = await getDocs(collection(db, 'inventario'))
       const productsData = []
       querySnapshot.forEach(doc => {
-        productsData.push({ docId: doc.id, ...doc.data() })
+        const data = doc.data()
+        const productWithStock = { 
+          docId: doc.id, 
+          ...data,
+          // Normalizar el campo de stock para compatibilidad
+          stockActual: data.cantidad || data.stock || 0
+        }
+        productsData.push(productWithStock)
+      })
+      // Asegurar que cada producto tenga `precioUnitario` para el carrito
+      productsData.forEach(p => {
+        p.precioUnitario = Number(p.precio || p.precioUnitario || 0)
       })
       setProducts(productsData)
     } catch (error) {
@@ -53,15 +64,28 @@ function NewSale({ onClose, user }) {
       if (existingIndex >= 0) {
         const updated = [...prev]
         const currentQty = Number(updated[existingIndex].cantidad || 0)
-        const maxStock = Number(product.stock || 0)
+        const maxStock = Number(product.stockActual || product.cantidad || product.stock || 0)
+        
         if (currentQty < maxStock) {
           updated[existingIndex].cantidad = currentQty + 1
+          // Mantener la información del stock original del inventario
+          updated[existingIndex].stockActual = product.stockActual || product.cantidad || product.stock || 0
+          updated[existingIndex].stockOriginal = product.stockActual || product.cantidad || product.stock || 0
+          updated[existingIndex].cantidadInventario = product.stockActual || product.cantidad || product.stock || 0
         } else {
           alert(`No se puede agregar más. Stock máximo: ${maxStock}`)
         }
         return updated
       } else {
-        return [...prev, { ...product, cantidad: 1 }]
+        // Agregar nuevo producto con información completa del stock
+        const newCartItem = { 
+          ...product, 
+          cantidad: 1,
+          stockActual: product.stockActual || product.cantidad || product.stock || 0,
+          stockOriginal: product.stockActual || product.cantidad || product.stock || 0,
+          cantidadInventario: product.stockActual || product.cantidad || product.stock || 0
+        }
+        return [...prev, newCartItem]
       }
     })
     
@@ -160,28 +184,28 @@ function NewSale({ onClose, user }) {
           alignItems: window.innerWidth < 600 ? 'stretch' : 'center'
         }}>
           {/* Búsqueda */}
-          <div style={{ flex: 1, minWidth: '0', width: window.innerWidth < 600 ? '100%' : 'auto' }}>
+          <div style={{ flex: 1, minWidth: '0', width: window.innerWidth < 600 ? '100%' : 'auto', display: 'flex', gap: '8px' }}>
             <input
               type="text"
               placeholder="Buscar por código o nombre..."
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
               style={{
-                width: '100%',
-                padding: '8px 12px',
+                flex: 1,
+                padding: window.innerWidth < 600 ? '14px 12px' : '8px 12px',
                 border: '1px solid #ddd',
                 borderRadius: '6px',
-                fontSize: '13px',
-                boxSizing: 'border-box'
+                fontSize: window.innerWidth < 600 ? '16px' : '13px',
+                boxSizing: 'border-box',
+                minHeight: window.innerWidth < 600 ? '48px' : 'auto'
               }}
             />
-            
             {/* Resultados de búsqueda - Sin position absolute */}
             {searchResults.length > 0 && (
               <div style={{
-                maxHeight: window.innerWidth < 600 ? '200px' : '180px',
+                maxHeight: window.innerWidth < 600 ? '240px' : '180px',
                 overflow: 'auto',
-                marginTop: '6px',
+                marginTop: '8px',
                 border: '1px solid #ddd',
                 borderRadius: '6px',
                 backgroundColor: 'white',
@@ -191,26 +215,27 @@ function NewSale({ onClose, user }) {
                   <div
                     key={product.docId}
                     style={{
-                      padding: '8px',
+                      padding: window.innerWidth < 600 ? '12px 10px' : '8px',
                       borderBottom: '1px solid #f0f0f0',
                       cursor: 'pointer',
                       display: 'grid',
                       gridTemplateColumns: '1fr auto',
-                      gap: '8px',
+                      gap: '10px',
                       alignItems: 'center',
-                      fontSize: '12px',
-                      background: 'white'
+                      fontSize: window.innerWidth < 600 ? '14px' : '12px',
+                      background: 'white',
+                      minHeight: window.innerWidth < 600 ? '50px' : 'auto'
                     }}
                     onClick={() => addToCart(product)}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
                   >
                     <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                      <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: window.innerWidth < 600 ? '15px' : '13px' }}>
                         {product.nombre}
                       </strong>
-                      <div style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        ${product.precioUnitario} | Stock: {product.stock}
+                      <div style={{ fontSize: window.innerWidth < 600 ? '12px' : '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        ${product.precioUnitario} | Stock: {product.stockActual || product.cantidad || product.stock || 0}
                       </div>
                     </div>
                     <button 
@@ -222,12 +247,13 @@ function NewSale({ onClose, user }) {
                         background: '#FF69B4',
                         border: 'none',
                         color: 'white',
-                        padding: '6px 10px',
+                        padding: window.innerWidth < 600 ? '12px 14px' : '6px 10px',
                         borderRadius: '4px',
-                        fontSize: '11px',
+                        fontSize: window.innerWidth < 600 ? '13px' : '11px',
                         cursor: 'pointer',
                         flexShrink: 0,
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        minHeight: window.innerWidth < 600 ? '40px' : 'auto'
                       }}
                     >
                       Agregar
@@ -246,10 +272,10 @@ function NewSale({ onClose, user }) {
               backgroundColor: showScanner ? '#ff4757' : '#2196f3',
               color: 'white',
               border: 'none',
-              padding: window.innerWidth < 600 ? '10px 16px' : '8px 12px',
+              padding: window.innerWidth < 600 ? '14px 16px' : '8px 12px',
               borderRadius: '6px',
               cursor: 'pointer',
-              fontSize: '12px',
+              fontSize: window.innerWidth < 600 ? '14px' : '12px',
               fontWeight: 'bold',
               flexShrink: 0,
               display: 'flex',
@@ -257,7 +283,8 @@ function NewSale({ onClose, user }) {
               justifyContent: 'center',
               gap: '6px',
               whiteSpace: 'nowrap',
-              width: window.innerWidth < 600 ? '100%' : 'auto'
+              width: window.innerWidth < 600 ? '100%' : 'auto',
+              minHeight: window.innerWidth < 600 ? '44px' : 'auto'
             }}
           >
             <FaBarcode />
@@ -302,6 +329,7 @@ function NewSale({ onClose, user }) {
                   onUpdateItems={setCartItems}
                   user={user}
                   isModal={true}
+                  onSaleCompleted={loadProducts}
                 />
               </div>
             </>

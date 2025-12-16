@@ -65,3 +65,16 @@ export const formatLocalDate = (isoString, locale = 'es-ES') => {
     day: '2-digit'
   })
 }
+
+/**
+ * Extrae la fecha (YYYY-MM-DD) según la zona horaria local a partir
+ * de un timestamp ISO. Útil para comparar por día en la vista del cliente.
+ */
+export const getLocalDateStringFromISO = (isoString) => {
+  if (!isoString) return null
+  const d = new Date(isoString)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}

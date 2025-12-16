@@ -1,40 +1,28 @@
 import React, { useState, useEffect } from 'react'
-import { FaPlus, FaEdit, FaTrash, FaUser, FaPhone, FaBox, FaShoppingCart, FaBarcode, FaCamera, FaKeyboard } from 'react-icons/fa'
-import BarcodeScannerComponent from 'react-qr-barcode-scanner'
-import { getProviders, createProvider, updateProvider, deleteProvider, getProviderProducts, addProductToProvider } from '../services/providersService'
+import { FaPlus, FaEdit, FaTrash, FaUser, FaPhone, FaShoppingCart } from 'react-icons/fa'
+import { getProviders, createProvider, updateProvider, deleteProvider, getProviderPurchases } from '../services/providersService'
+import { deletePurchase } from '../services/expensesService'
 import Purchase from './Purchase'
-import { getDocs, collection } from 'firebase/firestore'
-import { getFirestore } from 'firebase/firestore'
-import { app } from '../firebase'
 
-const db = getFirestore(app)
 
 const Providers = ({ user }) => {
   const [providers, setProviders] = useState([])
-  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [showProductForm, setShowProductForm] = useState(false)
   const [showPurchaseForm, setShowPurchaseForm] = useState(false)
-  const [showBarcodeInput, setShowBarcodeInput] = useState(false)
-  const [scannerMode, setScannerMode] = useState('camera') // 'camera' o 'manual'
+  const [showPurchaseHistory, setShowPurchaseHistory] = useState(false)
+  const [selectedProviderPurchases, setSelectedProviderPurchases] = useState([])
+  const [loadingPurchases, setLoadingPurchases] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState(null)
   const [editingProvider, setEditingProvider] = useState(null)
   const [formData, setFormData] = useState({
     nombre: '',
     contacto: ''
   })
-  const [productFormData, setProductFormData] = useState({
-    id: '',
-    nombre: '',
-    cantidad: 1,
-    costo: '',
-    precio: ''
-  })
+
 
   useEffect(() => {
     loadProviders()
-    loadProducts()
   }, [])
 
   const loadProviders = async () => {
@@ -48,19 +36,7 @@ const Providers = ({ user }) => {
     }
   }
 
-  const loadProducts = async () => {
-    try {
-      const inventorySnapshot = await getDocs(collection(db, 'inventario'))
-      const productsData = inventorySnapshot.docs.map(doc => ({
-        id: doc.id,
-        nombre: doc.data().nombre || doc.data().name,
-        ...doc.data()
-      }))
-      setProducts(productsData)
-    } catch (error) {
-      console.error('Error cargando productos:', error)
-    }
-  }
+
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -77,38 +53,20 @@ const Providers = ({ user }) => {
     }
   }
 
-  const handleBarcodeCapture = (barcode) => {
-    if (barcode && barcode.trim()) {
-      const code = typeof barcode === 'string' ? barcode.trim() : barcode.text?.trim() || '';
-      if (code) {
-        setProductFormData({ ...productFormData, id: code })
-        setShowBarcodeInput(false)
-        setScannerMode('camera')
-      }
-    }
-  }
 
-  const handleAddProduct = async (e) => {
-    e.preventDefault()
-    if (!selectedProvider || !productFormData.id || !productFormData.nombre || !productFormData.costo || !productFormData.precio) {
-      alert('Por favor completa todos los campos')
-      return
-    }
 
+  const handleViewPurchases = async (provider) => {
+    setLoadingPurchases(true)
     try {
-      await addProductToProvider(selectedProvider.id, {
-        id: productFormData.id,
-        nombre: productFormData.nombre,
-        cantidad: Number(productFormData.cantidad),
-        costo: Number(productFormData.costo),
-        precio: Number(productFormData.precio)
-      })
-      
-      setShowProductForm(false)
-      setProductFormData({ id: '', nombre: '', cantidad: 1, costo: '', precio: '' })
-      // Aquí podrías recargar los productos del proveedor si tienes una vista detallada
+      const purchases = await getProviderPurchases(provider.id)
+      setSelectedProviderPurchases(purchases)
+      setSelectedProvider(provider)
+      setShowPurchaseHistory(true)
     } catch (error) {
-      console.error('Error agregando producto:', error)
+      console.error('Error cargando compras:', error)
+      alert('Error al cargar el historial de compras')
+    } finally {
+      setLoadingPurchases(false)
     }
   }
 
@@ -122,12 +80,26 @@ const Providers = ({ user }) => {
   }
 
   const handleDelete = async (providerId) => {
-    if (window.confirm('¿Estás seguro de que quieres desactivar este proveedor?')) {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este proveedor?')) {
       try {
         await deleteProvider(providerId)
         await loadProviders()
       } catch (error) {
         console.error('Error eliminando proveedor:', error)
+      }
+    }
+  }
+
+  const handleDeletePurchase = async (purchaseId) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta compra? Se restaurará el inventario y esta acción no se puede deshacer.')) {
+      try {
+        await deletePurchase(purchaseId)
+        // Recargar el historial de compras
+        await handleViewPurchases(selectedProvider)
+        alert('Compra eliminada exitosamente')
+      } catch (error) {
+        console.error('Error eliminando compra:', error)
+        alert('Error al eliminar la compra')
       }
     }
   }
@@ -311,24 +283,23 @@ const Providers = ({ user }) => {
 
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => {
-                    setSelectedProvider(provider)
-                    setShowProductForm(true)
-                  }}
+                  onClick={() => handleViewPurchases(provider)}
+                  disabled={loadingPurchases}
                   style={{
-                    backgroundColor: '#2196f3',
+                    backgroundColor: '#4caf50',
                     color: 'white',
                     border: 'none',
                     padding: '8px 12px',
                     borderRadius: '6px',
-                    cursor: 'pointer',
+                    cursor: loadingPurchases ? 'not-allowed' : 'pointer',
                     fontSize: '12px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '5px'
+                    gap: '5px',
+                    opacity: loadingPurchases ? 0.6 : 1
                   }}
                 >
-                  <FaBox /> Productos
+                  <FaShoppingCart /> Compras
                 </button>
                 
                 <button
@@ -386,8 +357,20 @@ const Providers = ({ user }) => {
           </div>
         )}
 
-        {/* Modal para agregar productos */}
-        {showProductForm && selectedProvider && (
+        {/* Modal de compra */}
+        {showPurchaseForm && (
+          <Purchase
+            user={user}
+            onClose={() => setShowPurchaseForm(false)}
+            onSuccess={() => {
+              setShowPurchaseForm(false)
+              // Opcional: recargar datos o mostrar mensaje de éxito
+            }}
+          />
+        )}
+
+        {/* Modal para ver historial de compras */}
+        {showPurchaseHistory && selectedProvider && (
           <div style={{
             position: 'fixed',
             top: 0,
@@ -405,207 +388,8 @@ const Providers = ({ user }) => {
               padding: '30px',
               borderRadius: '12px',
               width: '90%',
-              maxWidth: '400px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
-            }}>
-              <h3>Agregar Producto a {selectedProvider.nombre}</h3>
-              <form onSubmit={handleAddProduct}>
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    ID (Código de Barras):
-                  </label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <input
-                      type="text"
-                      value={productFormData.id}
-                      onChange={(e) => setProductFormData({ ...productFormData, id: e.target.value })}
-                      required
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        border: '1px solid #ddd',
-                        borderRadius: '6px',
-                        fontSize: '14px'
-                      }}
-                      placeholder="Código de barras del producto"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowBarcodeInput(true)}
-                      style={{
-                        padding: '10px 15px',
-                        backgroundColor: '#2196f3',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="Escanear código de barras"
-                    >
-                      <FaBarcode />
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Nombre:
-                  </label>
-                  <input
-                    type="text"
-                    value={productFormData.nombre}
-                    onChange={(e) => setProductFormData({ ...productFormData, nombre: e.target.value })}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                    placeholder="Nombre del producto"
-                  />
-                </div>
-
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Cantidad:
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={productFormData.cantidad}
-                    onChange={(e) => setProductFormData({ ...productFormData, cantidad: e.target.value })}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                    placeholder="Cantidad disponible"
-                  />
-                </div>
-                
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Costo:
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={productFormData.costo}
-                    onChange={(e) => setProductFormData({ ...productFormData, costo: e.target.value })}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                    placeholder="Precio de costo"
-                  />
-                </div>
-
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Precio:
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={productFormData.precio}
-                    onChange={(e) => setProductFormData({ ...productFormData, precio: e.target.value })}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                    placeholder="Precio de venta"
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    type="submit"
-                    style={{
-                      backgroundColor: '#4caf50',
-                      color: 'white',
-                      border: 'none',
-                      padding: '10px 20px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      flex: 1
-                    }}
-                  >
-                    Agregar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowProductForm(false)
-                      setProductFormData({ id: '', nombre: '', cantidad: 1, costo: '', precio: '' })
-                      setSelectedProvider(null)
-                    }}
-                    style={{
-                      backgroundColor: '#666',
-                      color: 'white',
-                      border: 'none',
-                      padding: '10px 20px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      flex: 1
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de compra */}
-        {showPurchaseForm && (
-          <Purchase
-            user={user}
-            onClose={() => setShowPurchaseForm(false)}
-            onSuccess={() => {
-              setShowPurchaseForm(false)
-              // Opcional: recargar datos o mostrar mensaje de éxito
-            }}
-          />
-        )}
-
-        {/* Modal para capturar código de barras */}
-        {showBarcodeInput && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1001
-          }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              padding: '20px',
-              width: '95%',
-              maxWidth: '500px',
-              maxHeight: '90vh',
+              maxWidth: '800px',
+              maxHeight: '80vh',
               overflow: 'auto',
               boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
             }}>
@@ -613,169 +397,158 @@ const Providers = ({ user }) => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '20px'
+                marginBottom: '20px',
+                borderBottom: '1px solid #eee',
+                paddingBottom: '15px'
               }}>
-                <h3 style={{
-                  margin: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <FaBarcode style={{ color: '#2196f3' }} />
-                  Código de Barras
+                <h3 style={{ color: '#333', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <FaShoppingCart style={{ color: '#4caf50' }} />
+                  Compras - {selectedProvider.nombre}
                 </h3>
-                <div style={{
-                  display: 'flex',
-                  gap: '10px'
-                }}>
-                  <button
-                    onClick={() => setScannerMode('camera')}
-                    style={{
-                      padding: '8px 12px',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      backgroundColor: scannerMode === 'camera' ? '#2196f3' : '#f0f0f0',
-                      color: scannerMode === 'camera' ? 'white' : '#333',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      fontSize: '14px'
-                    }}
-                  >
-                    <FaCamera />
-                    Cámara
-                  </button>
-                  <button
-                    onClick={() => setScannerMode('manual')}
-                    style={{
-                      padding: '8px 12px',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      backgroundColor: scannerMode === 'manual' ? '#2196f3' : '#f0f0f0',
-                      color: scannerMode === 'manual' ? 'white' : '#333',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      fontSize: '14px'
-                    }}
-                  >
-                    <FaKeyboard />
-                    Manual
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowPurchaseHistory(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '24px',
+                    cursor: 'pointer',
+                    color: '#666'
+                  }}
+                >
+                  ×
+                </button>
               </div>
 
-              {scannerMode === 'camera' ? (
+              {selectedProviderPurchases.length === 0 ? (
                 <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '15px'
+                  textAlign: 'center',
+                  padding: '40px',
+                  color: '#666'
                 }}>
-                  <div style={{
-                    width: '100%',
-                    maxWidth: '400px',
-                    height: '300px',
-                    border: '2px solid #2196f3',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <BarcodeScannerComponent
-                      width={380}
-                      height={280}
-                      onUpdate={(err, result) => {
-                        if (result) {
-                          handleBarcodeCapture(result.text)
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover'
-                      }}
-                    />
-                  </div>
-                  <p style={{
-                    textAlign: 'center',
-                    color: '#666',
-                    fontSize: '14px',
-                    margin: 0
-                  }}>
-                    Apunta la cámara hacia el código de barras
-                  </p>
+                  <FaShoppingCart style={{ fontSize: '3rem', color: '#ddd', marginBottom: '15px' }} />
+                  <p>No hay compras registradas para este proveedor</p>
                 </div>
               ) : (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '15px'
-                }}>
-                  <input
-                    type="text"
-                    placeholder="Escribe o escanea el código de barras"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.target.value.trim()) {
-                        handleBarcodeCapture(e.target.value.trim())
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '2px solid #2196f3',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      textAlign: 'center',
-                      letterSpacing: '2px'
-                    }}
-                  />
-                  <p style={{
-                    textAlign: 'center',
-                    color: '#666',
-                    fontSize: '14px',
-                    margin: 0
+                <div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto auto auto auto',
+                    gap: '10px',
+                    padding: '15px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '8px',
+                    fontWeight: 'bold',
+                    marginBottom: '10px'
                   }}>
-                    Escribe el código o usa un escáner conectado
-                  </p>
+                    <div>Fecha</div>
+                    <div>Productos</div>
+                    <div>Total</div>
+                    <div>Detalles</div>
+                    <div>Acciones</div>
+                  </div>
+                  
+                  {selectedProviderPurchases.map((purchase, index) => (
+                    <div key={index} style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto auto auto auto',
+                      gap: '10px',
+                      padding: '15px',
+                      borderBottom: '1px solid #eee',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#333' }}>
+                          {new Date(purchase.fechaHora).toLocaleDateString()}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>
+                          {new Date(purchase.fechaHora).toLocaleTimeString()}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        {purchase.productos ? purchase.productos.length : 0} items
+                      </div>
+                      <div style={{ 
+                        fontWeight: 'bold', 
+                        color: '#4caf50',
+                        textAlign: 'right'
+                      }}>
+                        L{purchase.total.toLocaleString()}
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <details style={{ cursor: 'pointer' }}>
+                          <summary style={{ 
+                            padding: '5px 10px', 
+                            backgroundColor: '#e3f2fd', 
+                            borderRadius: '4px',
+                            fontSize: '12px'
+                          }}>
+                            Ver productos
+                          </summary>
+                          <div style={{
+                            marginTop: '10px',
+                            padding: '10px',
+                            backgroundColor: '#f5f5f5',
+                            borderRadius: '4px',
+                            fontSize: '12px'
+                          }}>
+                            {purchase.productos && purchase.productos.map((producto, prodIndex) => (
+                              <div key={prodIndex} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                marginBottom: '5px',
+                                paddingBottom: '5px',
+                                borderBottom: prodIndex < purchase.productos.length - 1 ? '1px solid #ddd' : 'none'
+                              }}>
+                                <span>{producto.nombre}</span>
+                                <span>Cant: {producto.cantidad} | L{producto.costo}/u</span>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => handleDeletePurchase(purchase.id)}
+                          style={{
+                            backgroundColor: '#f44336',
+                            color: 'white',
+                            border: 'none',
+                            padding: '6px 10px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <FaTrash /> Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  
+                    <div style={{
+                    marginTop: '20px',
+                    padding: '15px',
+                    backgroundColor: '#e8f5e8',
+                    borderRadius: '8px',
+                    textAlign: 'right'
+                  }}>
+                    <strong>
+                      Total gastado: L
+                      {selectedProviderPurchases.reduce((sum, purchase) => sum + purchase.total, 0).toLocaleString()}
+                    </strong>
+                  </div>
                 </div>
               )}
 
               <div style={{
-                display: 'flex',
-                gap: '10px',
-                justifyContent: 'center',
-                marginTop: '20px'
+                marginTop: '20px',
+                textAlign: 'center'
               }}>
-                {scannerMode === 'manual' && (
-                  <button
-                    onClick={(e) => {
-                      const input = document.querySelector('input[placeholder*="código de barras"]')
-                      if (input && input.value.trim()) {
-                        handleBarcodeCapture(input.value.trim())
-                      }
-                    }}
-                    style={{
-                      backgroundColor: '#4caf50',
-                      color: 'white',
-                      border: 'none',
-                      padding: '10px 20px',
-                      borderRadius: '6px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Confirmar
-                  </button>
-                )}
                 <button
-                  onClick={() => {
-                    setShowBarcodeInput(false)
-                    setScannerMode('camera')
-                  }}
+                  onClick={() => setShowPurchaseHistory(false)}
                   style={{
                     backgroundColor: '#666',
                     color: 'white',
@@ -785,7 +558,7 @@ const Providers = ({ user }) => {
                     cursor: 'pointer'
                   }}
                 >
-                  Cancelar
+                  Cerrar
                 </button>
               </div>
             </div>
