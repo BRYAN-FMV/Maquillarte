@@ -306,6 +306,13 @@ function SalesView({ userRole, onNavigate, user }) {
                         ))}
                       </tbody>
                     </table>
+                    {/* Observaciones de la venta */}
+                    {venta.observaciones && String(venta.observaciones).trim() !== '' && (
+                      <div style={{ marginTop: '10px', background: '#fff8e1', padding: '10px', borderRadius: '6px', border: '1px solid #f0e0a0' }}>
+                        <strong>Observaciones:</strong>
+                        <div style={{ marginTop: '6px', whiteSpace: 'pre-wrap', fontSize: '13px', color: '#333' }}>{venta.observaciones}</div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
