@@ -1,5 +1,5 @@
 // Servicio para gestión de gastos y compras
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, query, where, orderBy } from 'firebase/firestore'
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, query, where, orderBy, setDoc, getDoc, runTransaction, deleteDoc, limit } from 'firebase/firestore'
 import { app } from '../firebase'
 
 const db = getFirestore(app)
@@ -89,19 +89,22 @@ export const registerPurchase = async (purchaseData) => {
 // Crear nuevo producto en inventario
 const createNewProduct = async (productData) => {
   try {
-    const docRef = await addDoc(collection(db, 'inventario'), {
+    // Crear documento con ID personalizado igual al id del producto
+    const productRef = doc(db, 'inventario', String(productData.id))
+    const stockQty = Number(productData.cantidad || productData.stock || 0)
+    await setDoc(productRef, {
       id: productData.id,
       nombre: productData.nombre,
-      cantidad: Number(productData.cantidad || 0),
+      cantidad: stockQty,
+      stock: stockQty,
       costo: Number(productData.costo || 0),
       precio: Number(productData.precio || 0),
       fechaCreacion: new Date().toISOString(),
       fechaActualizacion: new Date().toISOString(),
       activo: true
     })
-    
-    // Retornar el ID del nuevo producto creado
-    return docRef.id
+
+    return String(productData.id)
   } catch (error) {
     console.error('Error creando nuevo producto:', error)
     throw error
@@ -111,19 +114,33 @@ const createNewProduct = async (productData) => {
 // Actualizar stock de producto
 const updateProductStock = async (productId, quantityToAdd) => {
   try {
-    const productRef = doc(db, 'inventario', productId)
-    
-    // Obtener el stock actual
-    const productSnapshot = await getDocs(collection(db, 'inventario'))
-    const currentProduct = productSnapshot.docs.find(doc => doc.id === productId)
-    
-    if (currentProduct) {
-      const currentStock = Number(currentProduct.data().stock || 0)
+    const productRef = doc(db, 'inventario', String(productId))
+
+    // Obtener el documento específico
+    const productSnapshot = await getDoc(productRef)
+    if (productSnapshot.exists()) {
+      const data = productSnapshot.data()
+      const currentStock = Number(data.stock ?? data.cantidad ?? 0)
       const newStock = currentStock + Number(quantityToAdd)
-      
+
       await updateDoc(productRef, {
         stock: newStock,
+        cantidad: newStock,
         fechaActualizacion: new Date().toISOString()
+      })
+    } else {
+      // Si no existe, crear con el id proporcionado
+      const stockQty = Number(quantityToAdd || 0)
+      await setDoc(productRef, {
+        id: productId,
+        nombre: '',
+        cantidad: stockQty,
+        stock: stockQty,
+        costo: 0,
+        precio: 0,
+        fechaCreacion: new Date().toISOString(),
+        fechaActualizacion: new Date().toISOString(),
+        activo: true
       })
     }
   } catch (error) {
@@ -234,5 +251,89 @@ export const getFinancialMetrics = async (startDate, endDate) => {
       netProfit: 0,
       profitMargin: 0
     }
+  }
+}
+
+// Eliminar compra y restaurar inventario (y gasto asociado si se encuentra)
+export const deletePurchase = async (purchaseId) => {
+  try {
+    await runTransaction(db, async (transaction) => {
+      const purchaseRef = doc(db, 'compras', purchaseId)
+      const purchaseSnap = await transaction.get(purchaseRef)
+      if (!purchaseSnap.exists()) throw new Error('Compra no encontrada')
+
+      const purchaseData = purchaseSnap.data()
+      const productos = purchaseData.productos || []
+
+      // Restaurar stock para cada producto
+      for (const producto of productos) {
+        const prodId = String(producto.id)
+        const invRef = doc(db, 'inventario', prodId)
+        const invSnap = await transaction.get(invRef)
+        const qty = Number(producto.cantidad || 0)
+
+        if (invSnap.exists()) {
+          const invData = invSnap.data()
+          const current = Number(invData.stock ?? invData.cantidad ?? 0)
+          const newStock = current + qty
+          transaction.update(invRef, { stock: newStock, cantidad: newStock, fechaActualizacion: new Date().toISOString() })
+        } else {
+          // Crear registro si no existe
+          transaction.set(invRef, {
+            id: prodId,
+            nombre: producto.nombre || '',
+            cantidad: qty,
+            stock: qty,
+            costo: producto.costo || 0,
+            precio: producto.precio || 0,
+            fechaCreacion: new Date().toISOString(),
+            fechaActualizacion: new Date().toISOString(),
+            activo: true
+          })
+        }
+      }
+
+      // Eliminar documento de compra
+      transaction.delete(purchaseRef)
+
+      // Intentar eliminar gasto asociado (heurística: mismo proveedor + mismo monto + categoría 'compras' cercano en el tiempo)
+      try {
+        const gastosQuery = query(
+          collection(db, 'gastos'),
+          where('categoria', '==', 'compras'),
+          where('idProveedor', '==', purchaseData.idProveedor || null),
+          where('monto', '==', Number(purchaseData.total || 0)),
+          orderBy('fechaHora', 'desc'),
+          limit(5)
+        )
+        const gastosSnap = await getDocs(gastosQuery)
+        const compraTime = new Date(purchaseData.fechaHora || new Date().toISOString())
+
+        let toDeleteGastoId = null
+        for (const gdoc of gastosSnap.docs) {
+          const g = gdoc.data()
+          const gTime = new Date(g.fechaHora || 0)
+          const diff = Math.abs(gTime - compraTime)
+          // Si la diferencia es menor a 5 minutos, considerarlo asociado
+          if (diff <= 5 * 60 * 1000) {
+            toDeleteGastoId = gdoc.id
+            break
+          }
+        }
+
+        if (toDeleteGastoId) {
+          const gastoRef = doc(db, 'gastos', toDeleteGastoId)
+          transaction.delete(gastoRef)
+        }
+      } catch (err) {
+        // No bloquear la transacción si no se puede borrar el gasto
+        console.warn('No se pudo eliminar gasto asociado:', err.message)
+      }
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error eliminando compra:', error)
+    return { success: false, error: error.message }
   }
 }
