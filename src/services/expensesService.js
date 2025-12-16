@@ -70,13 +70,8 @@ export const registerPurchase = async (purchaseData) => {
 
     // 3. Actualizar o crear productos en inventario
     for (const producto of purchaseData.productos) {
-      if (producto.isNew) {
-        // Crear nuevo producto en inventario
-        await createNewProduct(producto)
-      } else {
-        // Actualizar stock del producto existente
-        await updateProductStock(producto.id, producto.cantidad)
-      }
+      // Usar una función unificada que maneja tanto productos nuevos como existentes
+      await updateOrCreateProductStock(producto)
     }
 
     return { id: purchaseRef.id, ...purchaseData }
@@ -86,36 +81,13 @@ export const registerPurchase = async (purchaseData) => {
   }
 }
 
-// Crear nuevo producto en inventario
-const createNewProduct = async (productData) => {
+// Función unificada para crear o actualizar productos en inventario
+const updateOrCreateProductStock = async (producto) => {
   try {
-    // Crear documento con ID personalizado igual al id del producto
-    const productRef = doc(db, 'inventario', String(productData.id))
-    const stockQty = Number(productData.cantidad || productData.stock || 0)
-    await setDoc(productRef, {
-      id: productData.id,
-      nombre: productData.nombre,
-      cantidad: stockQty,
-      stock: stockQty,
-      costo: Number(productData.costo || 0),
-      precio: Number(productData.precio || 0),
-      fechaCreacion: new Date().toISOString(),
-      fechaActualizacion: new Date().toISOString(),
-      activo: true
-    })
-
-    return String(productData.id)
-  } catch (error) {
-    console.error('Error creando nuevo producto:', error)
-    throw error
-  }
-}
-
-// Actualizar stock de producto
-const updateProductStock = async (productId, quantityToAdd) => {
-  try {
-    // Buscar producto por campo 'id' usando query
-    const inventarioQuery = query(collection(db, 'inventario'), where('id', '==', String(productId)))
+    const productId = String(producto.id)
+    
+    // Buscar producto existente por campo 'id'
+    const inventarioQuery = query(collection(db, 'inventario'), where('id', '==', productId))
     const inventarioSnapshot = await getDocs(inventarioQuery)
     
     if (!inventarioSnapshot.empty) {
@@ -124,31 +96,35 @@ const updateProductStock = async (productId, quantityToAdd) => {
       const productRef = doc(db, 'inventario', productDoc.id)
       const data = productDoc.data()
       const currentStock = Number(data.stock ?? data.cantidad ?? 0)
-      const newStock = currentStock + Number(quantityToAdd)
+      const newStock = currentStock + Number(producto.cantidad || 0)
 
       await updateDoc(productRef, {
         stock: newStock,
         cantidad: newStock,
-        fechaActualizacion: new Date().toISOString()
+        fechaActualizacion: new Date().toISOString(),
+        // Actualizar nombre, costo y precio si vienen en el producto
+        ...(producto.nombre && { nombre: producto.nombre }),
+        ...(producto.costo && { costo: Number(producto.costo) }),
+        ...(producto.precio && { precio: Number(producto.precio) })
       })
     } else {
-      // Si no existe, crear con el id proporcionado
-      const stockQty = Number(quantityToAdd || 0)
-      const productRef = doc(db, 'inventario', String(productId))
+      // Producto no existe - crear nuevo
+      const stockQty = Number(producto.cantidad || producto.stock || 0)
+      const productRef = doc(db, 'inventario', productId) // Usar productId como document ID
       await setDoc(productRef, {
-        id: String(productId),
-        nombre: '',
+        id: productId,
+        nombre: producto.nombre || '',
         cantidad: stockQty,
         stock: stockQty,
-        costo: 0,
-        precio: 0,
+        costo: Number(producto.costo || 0),
+        precio: Number(producto.precio || 0),
         fechaCreacion: new Date().toISOString(),
         fechaActualizacion: new Date().toISOString(),
         activo: true
       })
     }
   } catch (error) {
-    console.error('Error actualizando stock:', error)
+    console.error('Error creando/actualizando producto:', error)
     throw error
   }
 }
