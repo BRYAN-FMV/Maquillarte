@@ -114,12 +114,15 @@ const createNewProduct = async (productData) => {
 // Actualizar stock de producto
 const updateProductStock = async (productId, quantityToAdd) => {
   try {
-    const productRef = doc(db, 'inventario', String(productId))
-
-    // Obtener el documento específico
-    const productSnapshot = await getDoc(productRef)
-    if (productSnapshot.exists()) {
-      const data = productSnapshot.data()
+    // Buscar producto por campo 'id' usando query
+    const inventarioQuery = query(collection(db, 'inventario'), where('id', '==', String(productId)))
+    const inventarioSnapshot = await getDocs(inventarioQuery)
+    
+    if (!inventarioSnapshot.empty) {
+      // Producto existe - actualizar stock
+      const productDoc = inventarioSnapshot.docs[0]
+      const productRef = doc(db, 'inventario', productDoc.id)
+      const data = productDoc.data()
       const currentStock = Number(data.stock ?? data.cantidad ?? 0)
       const newStock = currentStock + Number(quantityToAdd)
 
@@ -131,8 +134,9 @@ const updateProductStock = async (productId, quantityToAdd) => {
     } else {
       // Si no existe, crear con el id proporcionado
       const stockQty = Number(quantityToAdd || 0)
+      const productRef = doc(db, 'inventario', String(productId))
       await setDoc(productRef, {
-        id: productId,
+        id: String(productId),
         nombre: '',
         cantidad: stockQty,
         stock: stockQty,
@@ -323,31 +327,26 @@ export const deletePurchase = async (purchaseId) => {
       const purchaseData = purchaseSnap.data()
       const productos = purchaseData.productos || []
 
-      // Restaurar stock para cada producto
+      // Restaurar stock para cada producto (sumar la cantidad que se había agregado)
       for (const producto of productos) {
         const prodId = String(producto.id)
-        const invRef = doc(db, 'inventario', prodId)
-        const invSnap = await transaction.get(invRef)
-        const qty = Number(producto.cantidad || 0)
+        
+        // Buscar producto por campo 'id' 
+        const inventarioQuery = query(collection(db, 'inventario'), where('id', '==', prodId))
+        const inventarioSnapshot = await getDocs(inventarioQuery)
+        
+        if (!inventarioSnapshot.empty) {
+          const productDoc = inventarioSnapshot.docs[0]
+          const invRef = doc(db, 'inventario', productDoc.id)
+          const invSnap = await transaction.get(invRef)
+          const qty = Number(producto.cantidad || 0)
 
-        if (invSnap.exists()) {
-          const invData = invSnap.data()
-          const current = Number(invData.stock ?? invData.cantidad ?? 0)
-          const newStock = current + qty
-          transaction.update(invRef, { stock: newStock, cantidad: newStock, fechaActualizacion: new Date().toISOString() })
-        } else {
-          // Crear registro si no existe
-          transaction.set(invRef, {
-            id: prodId,
-            nombre: producto.nombre || '',
-            cantidad: qty,
-            stock: qty,
-            costo: producto.costo || 0,
-            precio: producto.precio || 0,
-            fechaCreacion: new Date().toISOString(),
-            fechaActualizacion: new Date().toISOString(),
-            activo: true
-          })
+          if (invSnap.exists()) {
+            const invData = invSnap.data()
+            const current = Number(invData.stock ?? invData.cantidad ?? 0)
+            const newStock = Math.max(0, current - qty) // Restar cantidad y no permitir stock negativo
+            transaction.update(invRef, { stock: newStock, cantidad: newStock, fechaActualizacion: new Date().toISOString() })
+          }
         }
       }
 
