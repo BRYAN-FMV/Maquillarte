@@ -7,7 +7,6 @@ const db = getFirestore(app)
 // Categorías de gastos
 export const EXPENSE_CATEGORIES = [
   { id: 'compras', name: 'Compras', color: '#e91e63' },
-  { id: 'inventario', name: 'Inventario', color: '#e57373' },
   { id: 'operacion', name: 'Operación', color: '#2196f3' },
   { id: 'marketing', name: 'Marketing', color: '#ff9800' },
   { id: 'otros', name: 'Otros', color: '#9c27b0' }
@@ -31,24 +30,16 @@ export const getExpenses = async () => {
 // Registrar nuevo gasto
 export const createExpense = async (expenseData) => {
   try {
-    const fechaHora = new Date().toISOString()
-    const fecha = fechaHora.split('T')[0] // YYYY-MM-DD
-
-    const payload = {
+    const docRef = await addDoc(collection(db, 'gastos'), {
       descripcion: expenseData.descripcion,
       monto: Number(expenseData.monto),
       categoria: expenseData.categoria,
       idProveedor: expenseData.idProveedor || null,
-      fechaHora: fechaHora,
-      fecha: fecha,
-      tipo: expenseData.tipo || 'gasto',
+      fechaHora: new Date().toISOString(),
+      tipo: 'gasto',
       usuarioId: expenseData.usuarioId
-    }
-
-    if (expenseData.purchaseId) payload.purchaseId = expenseData.purchaseId
-
-    const docRef = await addDoc(collection(db, 'gastos'), payload)
-    return { id: docRef.id, ...expenseData, fecha, fechaHora }
+    })
+    return { id: docRef.id, ...expenseData }
   } catch (error) {
     console.error('Error creando gasto:', error)
     throw error
@@ -72,11 +63,9 @@ export const registerPurchase = async (purchaseData) => {
     await createExpense({
       descripcion: `Compra - ${purchaseData.nombreProveedor}`,
       monto: purchaseData.total,
-      categoria: 'inventario',
+      categoria: 'compras',
       idProveedor: purchaseData.idProveedor,
-      usuarioId: purchaseData.usuarioId,
-      purchaseId: purchaseRef.id,
-      tipo: 'compra'
+      usuarioId: purchaseData.usuarioId
     })
 
     // 3. Actualizar o crear productos en inventario
@@ -87,10 +76,6 @@ export const registerPurchase = async (purchaseData) => {
       } else {
         // Actualizar stock del producto existente
         await updateProductStock(producto.id, producto.cantidad)
-        // Si se especificó un precio, actualizar también el precio en inventario
-        if (producto.precio) {
-          await updateProductPrice(producto.id, producto.precio)
-        }
       }
     }
 
@@ -129,26 +114,22 @@ const createNewProduct = async (productData) => {
 // Actualizar stock de producto
 const updateProductStock = async (productId, quantityToAdd) => {
   try {
-    // Buscar el producto por su ID (campo 'id' dentro del documento)
-    const inventarioQuery = query(collection(db, 'inventario'), where('id', '==', productId))
-    const inventarioSnapshot = await getDocs(inventarioQuery)
-    
-    if (!inventarioSnapshot.empty) {
-      // Producto existe - actualizar su stock
-      const productDoc = inventarioSnapshot.docs[0]
-      const currentData = productDoc.data()
-      const currentStock = Number(currentData.cantidad || currentData.stock || 0)
+    const productRef = doc(db, 'inventario', String(productId))
+
+    // Obtener el documento específico
+    const productSnapshot = await getDoc(productRef)
+    if (productSnapshot.exists()) {
+      const data = productSnapshot.data()
+      const currentStock = Number(data.stock ?? data.cantidad ?? 0)
       const newStock = currentStock + Number(quantityToAdd)
-      
-      // Actualizar el documento del producto
-      await updateDoc(doc(db, 'inventario', productDoc.id), {
-        cantidad: newStock,
+
+      await updateDoc(productRef, {
         stock: newStock,
+        cantidad: newStock,
         fechaActualizacion: new Date().toISOString()
       })
     } else {
-      // Producto no existe - crear nuevo con document ID igual al product ID
-      const productRef = doc(db, 'inventario', String(productId))
+      // Si no existe, crear con el id proporcionado
       const stockQty = Number(quantityToAdd || 0)
       await setDoc(productRef, {
         id: productId,
@@ -168,30 +149,6 @@ const updateProductStock = async (productId, quantityToAdd) => {
   }
 }
 
-// Actualizar precio de producto
-const updateProductPrice = async (productId, newPrice) => {
-  try {
-    // Buscar el producto por su ID (campo 'id' dentro del documento)
-    const inventarioQuery = query(collection(db, 'inventario'), where('id', '==', productId))
-    const inventarioSnapshot = await getDocs(inventarioQuery)
-
-    if (!inventarioSnapshot.empty) {
-      const productDoc = inventarioSnapshot.docs[0]
-
-      // Actualizar el precio del producto
-      await updateDoc(doc(db, 'inventario', productDoc.id), {
-        precio: Number(newPrice),
-        fechaActualizacion: new Date().toISOString()
-      })
-    } else {
-      console.warn(`Producto ${productId} no encontrado para actualizar precio`)
-    }
-  } catch (error) {
-    console.error('Error actualizando precio:', error)
-    throw error
-  }
-}
-
 // Obtener gastos por rango de fechas
 export const getExpensesByDateRange = async (startDate, endDate) => {
   try {
@@ -200,11 +157,11 @@ export const getExpensesByDateRange = async (startDate, endDate) => {
       orderBy('fechaHora', 'desc')
     )
     const expensesSnapshot = await getDocs(expensesQuery)
-
+    
     const start = new Date(startDate)
     const end = new Date(endDate)
     end.setHours(23, 59, 59, 999)
-
+    
     return expensesSnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() }))
       .filter(expense => {
@@ -222,7 +179,7 @@ export const getExpensesByCategory = async () => {
   try {
     const expenses = await getExpenses()
     const expensesByCategory = {}
-
+    
     EXPENSE_CATEGORIES.forEach(category => {
       expensesByCategory[category.id] = {
         name: category.name,
@@ -231,14 +188,14 @@ export const getExpensesByCategory = async () => {
         count: 0
       }
     })
-
+    
     expenses.forEach(expense => {
       if (expensesByCategory[expense.categoria]) {
         expensesByCategory[expense.categoria].total += Number(expense.monto || 0)
         expensesByCategory[expense.categoria].count += 1
       }
     })
-
+    
     return expensesByCategory
   } catch (error) {
     console.error('Error obteniendo gastos por categoría:', error)
@@ -271,15 +228,15 @@ export const getFinancialMetrics = async (startDate, endDate) => {
     // Obtener gastos del período
     const expenses = await getExpensesByDateRange(startDate, endDate)
     const totalExpenses = expenses.reduce((sum, expense) => sum + Number(expense.monto || 0), 0)
-
+    
     // Obtener ventas del período (usando el mismo servicio de reportes)
     const { getFilteredReportsData } = await import('./reportsService')
     const reportData = await getFilteredReportsData(startDate, endDate)
     const totalRevenue = reportData.sales.totalRevenue
-
+    
     const netProfit = totalRevenue - totalExpenses
     const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0
-
+    
     return {
       totalRevenue,
       totalExpenses,
@@ -297,57 +254,6 @@ export const getFinancialMetrics = async (startDate, endDate) => {
   }
 }
 
-// Eliminar gasto; si está vinculado a una compra, eliminar también la compra asociada
-export const deleteExpense = async (expenseId) => {
-  try {
-    const expenseRef = doc(db, 'gastos', expenseId)
-    const expenseSnap = await getDoc(expenseRef)
-    if (!expenseSnap.exists()) return { deleted: false }
-
-    const expense = expenseSnap.data()
-
-    // Si tiene purchaseId explícito, eliminar la compra por id
-    if (expense.purchaseId) {
-      try {
-        await deleteDoc(doc(db, 'compras', expense.purchaseId))
-      } catch (e) {
-        console.warn('No se pudo eliminar compra vinculada por purchaseId:', e)
-      }
-    } else if ((expense.categoria === 'inventario' || expense.categoria === 'compras') && expense.idProveedor && expense.monto) {
-      // Fallback: intentar encontrar una compra con mismo proveedor y total en la misma fecha
-      try {
-        const purchasesQuery = query(
-          collection(db, 'compras'),
-          where('idProveedor', '==', expense.idProveedor),
-          where('total', '==', Number(expense.monto)),
-          orderBy('fechaHora', 'desc'),
-          limit(5)
-        )
-        const purchasesSnap = await getDocs(purchasesQuery)
-        if (!purchasesSnap.empty) {
-          for (const candidate of purchasesSnap.docs) {
-            const compraFecha = candidate.data().fechaHora ? new Date(candidate.data().fechaHora).toISOString().split('T')[0] : null
-            const gastoFecha = expense.fechaHora ? new Date(expense.fechaHora).toISOString().split('T')[0] : (expense.fecha || null)
-            if (compraFecha && gastoFecha && compraFecha === gastoFecha) {
-              await deleteDoc(doc(db, 'compras', candidate.id))
-              break
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Fallback eliminación compra no tuvo éxito:', e)
-      }
-    }
-
-    // Finalmente eliminar el gasto
-    await deleteDoc(expenseRef)
-    return { deleted: true }
-  } catch (error) {
-    console.error('Error eliminando gasto:', error)
-    throw error
-  }
-}
-
 // Eliminar compra y restaurar inventario (y gasto asociado si se encuentra)
 export const deletePurchase = async (purchaseId) => {
   try {
@@ -359,37 +265,42 @@ export const deletePurchase = async (purchaseId) => {
       const purchaseData = purchaseSnap.data()
       const productos = purchaseData.productos || []
 
-      // Restaurar stock para cada producto (restar la cantidad que se había agregado)
+      // Restaurar stock para cada producto
       for (const producto of productos) {
         const prodId = String(producto.id)
-        
-        // Buscar producto por campo 'id' 
-        const inventarioQuery = query(collection(db, 'inventario'), where('id', '==', prodId))
-        const inventarioSnapshot = await getDocs(inventarioQuery)
-        
-        if (!inventarioSnapshot.empty) {
-          const productDoc = inventarioSnapshot.docs[0]
-          const invRef = doc(db, 'inventario', productDoc.id)
-          const invSnap = await transaction.get(invRef)
-          const qty = Number(producto.cantidad || 0)
+        const invRef = doc(db, 'inventario', prodId)
+        const invSnap = await transaction.get(invRef)
+        const qty = Number(producto.cantidad || 0)
 
-          if (invSnap.exists()) {
-            const invData = invSnap.data()
-            const current = Number(invData.stock ?? invData.cantidad ?? 0)
-            const newStock = Math.max(0, current - qty) // No permitir stock negativo
-            transaction.update(invRef, { stock: newStock, cantidad: newStock, fechaActualizacion: new Date().toISOString() })
-          }
+        if (invSnap.exists()) {
+          const invData = invSnap.data()
+          const current = Number(invData.stock ?? invData.cantidad ?? 0)
+          const newStock = current + qty
+          transaction.update(invRef, { stock: newStock, cantidad: newStock, fechaActualizacion: new Date().toISOString() })
+        } else {
+          // Crear registro si no existe
+          transaction.set(invRef, {
+            id: prodId,
+            nombre: producto.nombre || '',
+            cantidad: qty,
+            stock: qty,
+            costo: producto.costo || 0,
+            precio: producto.precio || 0,
+            fechaCreacion: new Date().toISOString(),
+            fechaActualizacion: new Date().toISOString(),
+            activo: true
+          })
         }
       }
 
       // Eliminar documento de compra
       transaction.delete(purchaseRef)
 
-      // Intentar eliminar gasto asociado
+      // Intentar eliminar gasto asociado (heurística: mismo proveedor + mismo monto + categoría 'compras' cercano en el tiempo)
       try {
         const gastosQuery = query(
           collection(db, 'gastos'),
-          where('categoria', '==', 'inventario'),
+          where('categoria', '==', 'compras'),
           where('idProveedor', '==', purchaseData.idProveedor || null),
           where('monto', '==', Number(purchaseData.total || 0)),
           orderBy('fechaHora', 'desc'),

@@ -1,7 +1,7 @@
 // Servicio para obtener datos de reportes
 import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore'
 import { app } from '../firebase'
-import { getDateStringFromISO, getLocalDateStringFromISO } from '../utils/dateUtils'
+import { getDateStringFromISO } from '../utils/dateUtils'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -64,7 +64,7 @@ const getInventoryDataFromFirestore = async () => {
     return inventarioSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      quantity: Number(doc.data().cantidad || doc.data().stock || 0),
+      quantity: Number(doc.data().stock || 0),
       minStock: Number(doc.data().minStock || 5)
     }))
   } catch (error) {
@@ -265,10 +265,9 @@ const calculateExpensesMetrics = (expensesData) => {
     return {
       totalExpenses: 0,
       expensesByCategory: [
-        { category: 'Operativos', amount: 0, color: '#e91e63' },
-        { category: 'Inventario', amount: 0, color: '#e57373' },
+        { category: 'Compras', amount: 0, color: '#e91e63' },
+        { category: 'Operación', amount: 0, color: '#2196f3' },
         { category: 'Marketing', amount: 0, color: '#ff9800' },
-        { category: 'Personal', amount: 0, color: '#9c27b0' },
         { category: 'Otros', amount: 0, color: '#9c27b0' }
       ]
     }
@@ -285,10 +284,9 @@ const calculateExpensesMetrics = (expensesData) => {
   }
 
   const categoryMap = {
-    'operativos': { category: 'Operativos', color: '#e91e63' },
-    'inventario': { category: 'Inventario', color: '#e57373' },
+    'compras': { category: 'Compras', color: '#e91e63' },
+    'operacion': { category: 'Operación', color: '#2196f3' },
     'marketing': { category: 'Marketing', color: '#ff9800' },
-    'personal': { category: 'Personal', color: '#9c27b0' },
     'otros': { category: 'Otros', color: '#9c27b0' }
   }
 
@@ -413,32 +411,24 @@ const calculateProfitabilityMetrics = (salesData, providersData, inventoryData) 
     }
   }
 
-  // Normalizar clave de producto (nombre -> lowercase trimmed)
-  const normKey = (s) => String(s || '').trim().toLowerCase()
-
-  // Crear mapa de costos y precios de productos desde inventario y proveedores
+  // Crear mapa de costos y precios de productos desde el inventario y proveedores
   const productoCostos = {}
   const productoPrecios = {}
 
-  // Obtener costos desde proveedorProductos (normalizando nombres)
-  ;(providersData || []).forEach(provider => {
+  // Obtener costos desde proveedorProductos
+  providersData.forEach(provider => {
     if (provider.productos) {
       provider.productos.forEach(prod => {
-        const key = normKey(prod.nombre || prod.name)
-        if (!productoCostos[key]) {
-          productoCostos[key] = Number(prod.costo || prod.cost || 0)
+        if (!productoCostos[prod.nombre]) {
+          productoCostos[prod.nombre] = prod.costo || 0
         }
       })
     }
   })
 
-  // Obtener precios desde inventario y usar costo del inventario como fallback
-  ;(inventoryData || []).forEach(inv => {
-    const key = normKey(inv.nombre || inv.name)
-    productoPrecios[key] = Number(inv.precio || inv.price || 0)
-    if (!productoCostos[key]) {
-      productoCostos[key] = Number(inv.costo || inv.cost || 0)
-    }
+  // Obtener precios desde inventario
+  inventoryData.forEach(inv => {
+    productoPrecios[inv.nombre] = inv.precio || 0
   })
 
   // Calcular métricas de productos vendidos
@@ -447,13 +437,11 @@ const calculateProfitabilityMetrics = (salesData, providersData, inventoryData) 
   salesData.forEach(sale => {
     if (sale.items && Array.isArray(sale.items)) {
       sale.items.forEach(item => {
-        const rawName = item.nombre || item.name || 'Producto desconocido'
-        const nombre = String(rawName)
-        const key = normKey(rawName)
+        const nombre = item.nombre || 'Producto desconocido'
         const cantidad = Number(item.cantidad || 1)
-        const precioVenta = Number(item.precioUnitario || item.precio || 0)
-        const costo = Number(productoCostos[key] || 0)
-        const margen = precioVenta > 0 ? ((precioVenta - costo) / (precioVenta || 1) * 100) : 0
+        const precioVenta = Number(item.precioUnitario || 0)
+        const costo = productoCostos[nombre] || 0
+        const margen = precioVenta > 0 ? ((precioVenta - costo) / precioVenta * 100) : 0
 
         if (!productosVendidosMap[nombre]) {
           productosVendidosMap[nombre] = {
@@ -476,29 +464,8 @@ const calculateProfitabilityMetrics = (salesData, providersData, inventoryData) 
     }
   })
 
-    // Incluir productos del inventario que no aparecen en las ventas (cantidadVendida = 0)
-    ;(inventoryData || []).forEach(inv => {
-      const invName = inv.nombre || inv.name || 'Producto sin nombre'
-      if (!productosVendidosMap[invName]) {
-        const key = normKey(invName)
-        const costoInv = Number(productoCostos[key] || 0)
-        const precioInv = Number(productoPrecios[key] || 0)
-        const margenInv = precioInv > 0 ? ((precioInv - costoInv) / (precioInv || 1) * 100) : 0
-        productosVendidosMap[invName] = {
-          nombre: invName,
-          cantidadVendida: 0,
-          costoPorUnidad: costoInv,
-          precioPorUnidad: precioInv,
-          margenPorcentaje: margenInv,
-          ingresoTotal: 0,
-          costoTotal: 0,
-          gananciaTotal: 0
-        }
-      }
-    })
-
-    const productosVendidos = Object.values(productosVendidosMap)
-      .sort((a, b) => b.gananciaTotal - a.gananciaTotal)
+  const productosVendidos = Object.values(productosVendidosMap)
+    .sort((a, b) => b.gananciaTotal - a.gananciaTotal)
 
   // Calcular promedios
   const costopromedioVendido = productosVendidos.length > 0
@@ -514,16 +481,15 @@ const calculateProfitabilityMetrics = (salesData, providersData, inventoryData) 
     : 0
 
   // Calcular costo total del inventario
-  const costoTotalInventario = (inventoryData || []).reduce((sum, inv) => {
-    const key = normKey(inv.nombre || inv.name)
-    const costo = Number(productoCostos[key] || 0)
-    const cantidad = Number(inv.cantidad || inv.stock || 0)
+  const costoTotalInventario = inventoryData.reduce((sum, inv) => {
+    const costo = productoCostos[inv.nombre] || 0
+    const cantidad = inv.stock || 0
     return sum + (costo * cantidad)
   }, 0)
 
   const precioTotalInventario = inventoryData.reduce((sum, inv) => {
     const precio = inv.precio || 0
-    const cantidad = inv.cantidad || inv.stock || 0
+    const cantidad = inv.stock || 0
     return sum + (precio * cantidad)
   }, 0)
 
@@ -553,37 +519,31 @@ export const getFilteredReportsData = async (startDate, endDate) => {
     // Obtener datos de proveedores de Firestore
     const providersData = await getProvidersDataFromFirestore()
 
-    // Convertir compras a gastos con categoría 'Inventario' para reportes
-    const purchaseExpenses = (providersData || []).flatMap(provider => (
-      (provider.compras || []).map(compra => {
-        const fechaHora = compra.fechaHora || compra.fecha || new Date().toISOString()
-        return {
-          id: compra.id || `${provider.id}_compra_${Math.random().toString(36).substr(2,9)}`,
-          monto: Number(compra.total || compra.monto || 0),
-          fechaHora: fechaHora,
-          fecha: compra.fecha || getDateStringFromISO(compra.fechaHora) || fechaHora.split('T')[0],
-          categoria: 'Inventario',
-          descripcion: `Compra a ${provider.nombre || 'Proveedor'}`
-        }
-      })
-    ))
-
-    // Unir gastos de la colección 'gastos' con las compras convertidas
-    const mergedExpensesData = [ ...(allExpensesData || []), ...purchaseExpenses ]
-
-    // Filtrar ventas por fecha usando la fecha local (YYYY-MM-DD)
+    // Filtrar ventas por fecha - comparación simple de strings YYYY-MM-DD
     const filteredSales = allSalesData.filter(sale => {
-      if (!sale.timestamp) return false
-      const saleDateString = getLocalDateStringFromISO(sale.timestamp)
+      if (!sale.timestamp) {
+        return false
+      }
+      
+      // Extraer la fecha del timestamp ISO (sin considerar hora/zona horaria)
+      const saleDateString = getDateStringFromISO(sale.timestamp)
       if (!saleDateString) return false
+      
+      // Comparar fechas como strings (YYYY-MM-DD)
       return saleDateString >= startDate && saleDateString <= endDate
     })
 
-    // Filtrar gastos por fecha - usar fecha local cuando haya timestamp
-    const filteredExpenses = mergedExpensesData.filter(expense => {
-      if (!expense.fechaHora && !expense.fecha) return false
-      const expenseDateString = expense.fecha || getLocalDateStringFromISO(expense.fechaHora)
+    // Filtrar gastos por fecha - comparación simple de strings YYYY-MM-DD
+    const filteredExpenses = allExpensesData.filter(expense => {
+      if (!expense.fechaHora && !expense.fecha) {
+        return false
+      }
+      
+      // Usar fecha si existe, si no usar fechaHora
+      let expenseDateString = expense.fecha || getDateStringFromISO(expense.fechaHora)
       if (!expenseDateString) return false
+      
+      // Comparar fechas como strings (YYYY-MM-DD)
       return expenseDateString >= startDate && expenseDateString <= endDate
     })
 
@@ -641,228 +601,147 @@ export const exportReportData = (reportData, format, reportType) => {
 const generatePDFReport = (reportData, fileName, reportType) => {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.width
-
+  
+  // Configurar fuente y títulos
   doc.setFontSize(20)
   doc.setTextColor(40)
-
-  const titles = {
-    sales: 'Reporte de Ventas',
-    inventory: 'Reporte de Inventario',
-    expenses: 'Reporte de Gastos',
-    profitability: 'Reporte de Rentabilidad'
-  }
-
-  const mainTitle = titles[reportType] || 'Reporte'
+  
+  // Título principal
+  const mainTitle = reportType === 'sales' ? 'Reporte de Ventas' : 'Reporte de Inventario'
   doc.text(mainTitle, pageWidth / 2, 20, { align: 'center' })
-
+  
+  // Fecha del reporte
   doc.setFontSize(12)
   doc.setTextColor(100)
   doc.text(`Generado el: ${new Date().toLocaleDateString()}`, pageWidth / 2, 30, { align: 'center' })
-
+  
   let yPosition = 50
 
-  switch (reportType) {
-    case 'sales': {
-      doc.setFontSize(16)
-      doc.setTextColor(40)
-      doc.text('Resumen de Ventas', 14, yPosition)
-      yPosition += 10
-      doc.setFontSize(12)
-      doc.text(`Total de Ventas: ${reportData.sales.totalSales}`, 14, yPosition)
-      yPosition += 8
-      doc.text(`Ingresos Totales: L${reportData.sales.totalRevenue.toLocaleString()}`, 14, yPosition)
-      yPosition += 8
-      doc.text(`Ticket Promedio: L${reportData.sales.averageTicket}`, 14, yPosition)
-      yPosition += 12
-
-      if (reportData.sales.salesByDay && reportData.sales.salesByDay.length > 0) {
-        const salesTableData = reportData.sales.salesByDay.map(day => [day.day, day.sales])
-        autoTable(doc, {
-          head: [['Día', 'Ventas']],
-          body: salesTableData,
-          startY: yPosition,
-          headStyles: { fillColor: [233, 30, 99] },
-          margin: { left: 14 }
-        })
-      }
-      break
+  if (reportType === 'sales') {
+    // Reporte de Ventas
+    doc.setFontSize(16)
+    doc.setTextColor(40)
+    doc.text('Resumen de Ventas', 14, yPosition)
+    yPosition += 10
+    
+    // Métricas principales
+    doc.setFontSize(12)
+    doc.text(`Total de Ventas: ${reportData.sales.totalSales}`, 14, yPosition)
+    yPosition += 8
+    doc.text(`Ingresos Totales: $${reportData.sales.totalRevenue.toLocaleString()}`, 14, yPosition)
+    yPosition += 8
+    doc.text(`Ticket Promedio: $${reportData.sales.averageTicket}`, 14, yPosition)
+    yPosition += 15
+    
+    // Tabla de ventas por día
+    if (reportData.sales.salesByDay && reportData.sales.salesByDay.length > 0) {
+      const salesTableData = reportData.sales.salesByDay.map(day => [day.day, day.sales])
+      
+      autoTable(doc, {
+        head: [['Día', 'Ventas']],
+        body: salesTableData,
+        startY: yPosition,
+        headStyles: { fillColor: [233, 30, 99] },
+        margin: { left: 14 }
+      })
     }
-    case 'inventory': {
-      doc.setFontSize(16)
-      doc.setTextColor(40)
-      doc.text('Resumen de Inventario', 14, yPosition)
-      yPosition += 10
-      doc.setFontSize(12)
-      doc.text(`Total de Productos: ${reportData.inventory.totalProducts}`, 14, yPosition)
-      yPosition += 8
-      doc.text(`Productos con Stock Bajo: ${reportData.inventory.lowStock}`, 14, yPosition)
-      yPosition += 8
-      doc.text(`Productos Sin Stock: ${reportData.inventory.outOfStock}`, 14, yPosition)
-      yPosition += 12
-
-      if (reportData.inventory.topProducts && reportData.inventory.topProducts.length > 0) {
-        const topProductsData = reportData.inventory.topProducts.map((product, index) => [
-          index + 1,
-          product.name,
-          product.sales
-        ])
-        autoTable(doc, {
-          head: [['#', 'Producto', 'Ventas']],
-          body: topProductsData,
-          startY: yPosition,
-          headStyles: { fillColor: [233, 30, 99] },
-          margin: { left: 14 }
-        })
-      }
-      break
-    }
-    case 'expenses': {
-      doc.setFontSize(16)
-      doc.setTextColor(40)
-      doc.text('Resumen de Gastos', 14, yPosition)
-      yPosition += 10
-      doc.setFontSize(12)
-      doc.text(`Gastos Totales: L${(reportData.expenses && reportData.expenses.totalExpenses) ? reportData.expenses.totalExpenses.toLocaleString() : 0}`, 14, yPosition)
-      yPosition += 12
-
-      if (reportData.expenses && Array.isArray(reportData.expenses.expensesByCategory) && reportData.expenses.expensesByCategory.length > 0) {
-        const catTable = reportData.expenses.expensesByCategory.map(c => [c.category, `L${(c.amount || 0).toLocaleString()}`])
-        autoTable(doc, {
-          head: [['Categoría', 'Monto']],
-          body: catTable,
-          startY: yPosition,
-          headStyles: { fillColor: [233, 30, 99] },
-          margin: { left: 14 }
-        })
-      }
-      break
-    }
-    case 'profitability': {
-      doc.setFontSize(16)
-      doc.setTextColor(40)
-      doc.text('Resumen de Rentabilidad', 14, yPosition)
-      yPosition += 10
-      doc.setFontSize(12)
-
-      const ingresos = reportData.sales?.totalRevenue || 0
-      const gastos = reportData.expenses?.totalExpenses || 0
-      const profit = ingresos - gastos
-      const margin = ingresos > 0 ? ((profit / ingresos) * 100).toFixed(2) : '0'
-
-      doc.text(`Ingresos Totales: L${ingresos.toLocaleString()}`, 14, yPosition); yPosition += 8
-      doc.text(`Gastos Totales: L${gastos.toLocaleString()}`, 14, yPosition); yPosition += 8
-      doc.text(`Ganancia Neta: L${profit.toLocaleString()}`, 14, yPosition); yPosition += 8
-      doc.text(`Margen: ${margin}%`, 14, yPosition); yPosition += 12
-
-      // Tabla: Top vendidos (si existe)
-      if (reportData.profitability && Array.isArray(reportData.profitability.productosVendidos) && reportData.profitability.productosVendidos.length > 0) {
-        const topData = reportData.profitability.productosVendidos.map((p, idx) => [idx + 1, p.nombre || p.name, p.cantidadVendida || 0])
-        autoTable(doc, {
-          head: [['#', 'Producto', 'Cantidad Vendida']],
-          body: topData,
-          startY: yPosition,
-          headStyles: { fillColor: [233, 30, 99] },
-          margin: { left: 14 }
-        })
-      }
-      break
-    }
-    default: {
-      doc.setFontSize(12)
-      doc.text('No hay contenido específico para este tipo de reporte.', 14, yPosition)
+  } else {
+    // Reporte de Inventario
+    doc.setFontSize(16)
+    doc.setTextColor(40)
+    doc.text('Resumen de Inventario', 14, yPosition)
+    yPosition += 10
+    
+    // Métricas principales
+    doc.setFontSize(12)
+    doc.text(`Total de Productos: ${reportData.inventory.totalProducts}`, 14, yPosition)
+    yPosition += 8
+    doc.text(`Productos con Stock Bajo: ${reportData.inventory.lowStock}`, 14, yPosition)
+    yPosition += 8
+    doc.text(`Productos Sin Stock: ${reportData.inventory.outOfStock}`, 14, yPosition)
+    yPosition += 15
+    
+    // Tabla de productos más vendidos
+    if (reportData.inventory.topProducts && reportData.inventory.topProducts.length > 0) {
+      const topProductsData = reportData.inventory.topProducts.map((product, index) => [
+        index + 1,
+        product.name,
+        product.sales
+      ])
+      
+      autoTable(doc, {
+        head: [['#', 'Producto', 'Ventas']],
+        body: topProductsData,
+        startY: yPosition,
+        headStyles: { fillColor: [233, 30, 99] },
+        margin: { left: 14 }
+      })
     }
   }
-
+  
+  // Guardar PDF
   doc.save(`${fileName}.pdf`)
 }
 
 // Generar reporte en Excel
 const generateExcelReport = (reportData, fileName, reportType) => {
   const workbook = XLSX.utils.book_new()
-
-  switch (reportType) {
-    case 'sales': {
-      const summaryData = [
-        ['Reporte de Ventas'],
-        ['Fecha:', new Date().toLocaleDateString()],
-        [''],
-        ['Métricas Principales'],
-        ['Total de Ventas:', reportData.sales.totalSales],
-        ['Ingresos Totales:', `L${reportData.sales.totalRevenue.toLocaleString()}`],
-        ['Ticket Promedio:', `L${reportData.sales.averageTicket}`],
-        [''],
-        ['Ventas por Día de la Semana'],
-        ['Día', 'Cantidad de Ventas'],
-        ...((reportData.sales.salesByDay || []).map(day => [day.day, day.sales]))
-      ]
-
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen de Ventas')
-      break
-    }
-    case 'inventory': {
-      const summaryData = [
-        ['Reporte de Inventario'],
-        ['Fecha:', new Date().toLocaleDateString()],
-        [''],
-        ['Métricas Principales'],
-        ['Total de Productos:', reportData.inventory.totalProducts],
-        ['Productos con Stock Bajo:', reportData.inventory.lowStock],
-        ['Productos Sin Stock:', reportData.inventory.outOfStock],
-        [''],
-        ['Productos Más Vendidos'],
-        ['Posición', 'Producto', 'Ventas'],
-        ...((reportData.inventory.topProducts || []).map((product, index) => [index + 1, product.name, product.sales]))
-      ]
-
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen de Inventario')
-      break
-    }
-    case 'expenses': {
-      const summaryData = [
-        ['Reporte de Gastos'],
-        ['Fecha:', new Date().toLocaleDateString()],
-        [''],
-        ['Gastos Totales:', (reportData.expenses && reportData.expenses.totalExpenses) ? `L${reportData.expenses.totalExpenses.toLocaleString()}` : 'L0'],
-        [''],
-        ['Gastos por Categoría'],
-        ['Categoría', 'Monto'],
-        ...((reportData.expenses.expensesByCategory || []).map(c => [c.category, `L${(c.amount || 0).toLocaleString()}`]))
-      ]
-
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Gastos')
-      break
-    }
-    case 'profitability': {
-      const ingresos = reportData.sales?.totalRevenue || 0
-      const gastos = reportData.expenses?.totalExpenses || 0
-      const profit = ingresos - gastos
-
-      const summaryData = [
-        ['Reporte de Rentabilidad'],
-        ['Fecha:', new Date().toLocaleDateString()],
-        [''],
-        ['Ingresos Totales:', `L${ingresos.toLocaleString()}`],
-        ['Gastos Totales:', `L${gastos.toLocaleString()}`],
-        ['Ganancia Neta:', `L${profit.toLocaleString()}`],
-        [''],
-        ['Top Productos (por cantidad vendida)'],
-        ['Pos', 'Producto', 'Cantidad Vendida'],
-        ...((reportData.profitability.productosVendidos || []).map((p, i) => [i + 1, p.nombre || p.name, p.cantidadVendida || 0]))
-      ]
-
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Rentabilidad')
-      break
-    }
-    default: {
-      const summaryData = [['Reporte'], ['Fecha:', new Date().toLocaleDateString()]]
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen')
-    }
+  
+  if (reportType === 'sales') {
+    // Hoja de resumen de ventas
+    const summaryData = [
+      ['Reporte de Ventas'],
+      ['Fecha:', new Date().toLocaleDateString()],
+      [''],
+      ['Métricas Principales'],
+      ['Total de Ventas:', reportData.sales.totalSales],
+      ['Ingresos Totales:', `$${reportData.sales.totalRevenue.toLocaleString()}`],
+      ['Ticket Promedio:', `$${reportData.sales.averageTicket}`],
+      [''],
+      ['Ventas por Día de la Semana'],
+      ['Día', 'Cantidad de Ventas'],
+      ...reportData.sales.salesByDay.map(day => [day.day, day.sales])
+    ]
+    
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
+    
+    // Aplicar estilos básicos
+    summarySheet['A1'] = { v: 'Reporte de Ventas', t: 's', s: { font: { bold: true, sz: 16 } } }
+    summarySheet['A4'] = { v: 'Métricas Principales', t: 's', s: { font: { bold: true } } }
+    summarySheet['A9'] = { v: 'Ventas por Día de la Semana', t: 's', s: { font: { bold: true } } }
+    
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen de Ventas')
+    
+  } else {
+    // Hoja de resumen de inventario
+    const summaryData = [
+      ['Reporte de Inventario'],
+      ['Fecha:', new Date().toLocaleDateString()],
+      [''],
+      ['Métricas Principales'],
+      ['Total de Productos:', reportData.inventory.totalProducts],
+      ['Productos con Stock Bajo:', reportData.inventory.lowStock],
+      ['Productos Sin Stock:', reportData.inventory.outOfStock],
+      [''],
+      ['Productos Más Vendidos'],
+      ['Posición', 'Producto', 'Ventas'],
+      ...reportData.inventory.topProducts.map((product, index) => [
+        index + 1,
+        product.name,
+        product.sales
+      ])
+    ]
+    
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
+    
+    // Aplicar estilos básicos
+    summarySheet['A1'] = { v: 'Reporte de Inventario', t: 's', s: { font: { bold: true, sz: 16 } } }
+    summarySheet['A4'] = { v: 'Métricas Principales', t: 's', s: { font: { bold: true } } }
+    summarySheet['A9'] = { v: 'Productos Más Vendidos', t: 's', s: { font: { bold: true } } }
+    
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen de Inventario')
   }
-
+  
+  // Guardar Excel
   XLSX.writeFile(workbook, `${fileName}.xlsx`)
 }
