@@ -177,6 +177,10 @@ const Expenses = () => {
   };
 
   const handleDelete = async (docId) => {
+    if (!window.confirm('¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.')) {
+      return
+    }
+    
     try {
       const res = await deleteExpense(docId)
       if (res && res.deleted) {

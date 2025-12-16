@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { FaPlus, FaEdit, FaTrash, FaUser, FaPhone, FaShoppingCart } from 'react-icons/fa'
 import { getProviders, createProvider, updateProvider, deleteProvider, getProviderPurchases } from '../services/providersService'
+import { deletePurchase } from '../services/expensesService'
 import Purchase from './Purchase'
 
 
@@ -85,6 +86,20 @@ const Providers = ({ user }) => {
         await loadProviders()
       } catch (error) {
         console.error('Error eliminando proveedor:', error)
+      }
+    }
+  }
+
+  const handleDeletePurchase = async (purchaseId) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta compra? Se restaurará el inventario y esta acción no se puede deshacer.')) {
+      try {
+        await deletePurchase(purchaseId)
+        // Recargar el historial de compras
+        await handleViewPurchases(selectedProvider)
+        alert('Compra eliminada exitosamente')
+      } catch (error) {
+        console.error('Error eliminando compra:', error)
+        alert('Error al eliminar la compra')
       }
     }
   }
@@ -417,7 +432,7 @@ const Providers = ({ user }) => {
                 <div>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr auto auto auto',
+                    gridTemplateColumns: '1fr auto auto auto auto',
                     gap: '10px',
                     padding: '15px',
                     backgroundColor: '#f8f9fa',
@@ -429,12 +444,13 @@ const Providers = ({ user }) => {
                     <div>Productos</div>
                     <div>Total</div>
                     <div>Detalles</div>
+                    <div>Acciones</div>
                   </div>
                   
                   {selectedProviderPurchases.map((purchase, index) => (
                     <div key={index} style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr auto auto auto',
+                      gridTemplateColumns: '1fr auto auto auto auto',
                       gap: '10px',
                       padding: '15px',
                       borderBottom: '1px solid #eee',
@@ -489,6 +505,25 @@ const Providers = ({ user }) => {
                             ))}
                           </div>
                         </details>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => handleDeletePurchase(purchase.id)}
+                          style={{
+                            backgroundColor: '#f44336',
+                            color: 'white',
+                            border: 'none',
+                            padding: '6px 10px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <FaTrash /> Eliminar
+                        </button>
                       </div>
                     </div>
                   ))}
