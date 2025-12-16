@@ -193,10 +193,16 @@ function Inventario({ userRole }) {
       alert('No tienes permisos para eliminar productos')
       return
     }
+    
+    if (!window.confirm('¿Estás seguro de que quieres eliminar este producto del inventario? Esta acción no se puede deshacer.')) {
+      return
+    }
+    
     try {
       await deleteDoc(doc(db, 'inventario', docId))
       // quitar localmente
       setInventario(prev => prev.filter(i => i.docId !== docId))
+      alert('Producto eliminado exitosamente')
     } catch (error) {
       console.error('Error deleting item:', error)
       alert('Error al eliminar: ' + error.message)
