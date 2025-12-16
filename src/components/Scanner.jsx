@@ -13,7 +13,7 @@ function Scanner({ onScan, role, user }) {
   const [scannedCode, setScannedCode] = useState('')
   const [newProduct, setNewProduct] = useState({
     nombre: '',
-    stock: '',
+    cantidad: '',
     precioUnitario: ''
   })
 
@@ -71,31 +71,24 @@ function Scanner({ onScan, role, user }) {
   }
 
   const addToCart = (product) => {
-    console.log('Adding to cart:', product)
     setCartItems(prev => {
-      console.log('Current cart before adding:', prev)
       // Check if product already exists in cart
       const existingIndex = prev.findIndex(item => item.docId === product.docId)
       if (existingIndex >= 0) {
         // Increment quantity if product already in cart
         const updated = [...prev]
         const currentQty = Number(updated[existingIndex].cantidad || 0)
-        console.log('Product exists, current quantity:', currentQty)
-        const maxStock = Number(product.stock || 0)
+        const maxStock = Number(product.cantidad || product.stock || 0)
         if (currentQty < maxStock) {
           updated[existingIndex].cantidad = currentQty + 1
-          console.log('New quantity:', updated[existingIndex].cantidad)
         } else {
           alert(`No se puede agregar más. Stock máximo: ${maxStock}`)
         }
-        console.log('Updated cart:', updated)
         return updated
       } else {
         // Add new product to cart with quantity 1
         const newCartItem = { ...product, cantidad: 1 }
-        console.log('New product added:', newCartItem)
         const newCart = [...prev, newCartItem]
-        console.log('New cart:', newCart)
         return newCart
       }
     })
@@ -103,14 +96,14 @@ function Scanner({ onScan, role, user }) {
   }
 
   const handleAddProduct = async () => {
-    const { nombre, stock, precioUnitario } = newProduct
+    const { nombre, cantidad, precioUnitario } = newProduct
     if (!nombre.trim()) {
       alert('El nombre del producto es requerido')
       return
     }
     
     try {
-      const stockNum = Number(stock) || 0
+      const stockNum = Number(cantidad) || 0
       const precioNum = Number(precioUnitario) || 0
       
       // Agregar al inventario
@@ -120,7 +113,7 @@ function Scanner({ onScan, role, user }) {
       const newDoc = await addDoc(collection(db, 'inventario'), { 
         id: scannedCode, 
         nombre: nombre.trim(), 
-        stock: stockNum, 
+        cantidad: stockNum, 
         precioUnitario: precioNum 
       })
       
@@ -128,7 +121,7 @@ function Scanner({ onScan, role, user }) {
         docId: newDoc.id, 
         id: scannedCode, 
         nombre: nombre.trim(), 
-        stock: stockNum, 
+        cantidad: stockNum, 
         precioUnitario: precioNum 
       }
       
@@ -142,7 +135,7 @@ function Scanner({ onScan, role, user }) {
 
   const handleCloseModal = () => {
     setShowAddModal(false)
-    setNewProduct({ nombre: '', stock: '', precioUnitario: '' })
+      setNewProduct({ nombre: '', cantidad: '', precioUnitario: '' })
     setScannedCode('')
     setScanning(true)
   }
@@ -274,8 +267,8 @@ function Scanner({ onScan, role, user }) {
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Stock inicial</label>
               <input
                 type="number"
-                value={newProduct.stock}
-                onChange={(e) => setNewProduct(prev => ({ ...prev, stock: e.target.value }))}
+                value={newProduct.cantidad}
+                onChange={(e) => setNewProduct(prev => ({ ...prev, cantidad: e.target.value }))}
                 placeholder="0"
                 min="0"
                 style={{

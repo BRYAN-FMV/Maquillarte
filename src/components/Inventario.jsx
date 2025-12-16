@@ -1,10 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
-import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query as fsQuery, where as fsWhere, orderBy, limit as fsLimit, startAfter } from 'firebase/firestore'
 import Scanner from './Scanner'
 
 function Inventario({ userRole }) {
   const [inventario, setInventario] = useState([])
-  const [newItem, setNewItem] = useState({ id: '', nombre: '', stock: '', precioUnitario: '' })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const lastDocRef = useRef(null)
+  const [newItem, setNewItem] = useState({ id: '', nombre: '', cantidad: '', costo: '', precio: '', categoria: 'otros' })
   const [editingId, setEditingId] = useState(null)
   const [showScanner, setShowScanner] = useState(false)
 
@@ -15,14 +19,103 @@ function Inventario({ userRole }) {
   const canDelete = userRole === 'admin'
   const canAdd = userRole === 'admin' || userRole === 'employee'
 
+  // Carga inicial: solo primeros 20 items ordenados por nombre
   const fetchInventario = useCallback(async () => {
-    const querySnapshot = await getDocs(collection(db, 'inventario'))
-    const items = querySnapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }))
+    const q = fsQuery(collection(db, 'inventario'), orderBy('nombre'), fsLimit(20))
+    const querySnapshot = await getDocs(q)
+    const items = querySnapshot.docs.map(d => ({ docId: d.id, ...d.data() }))
     setInventario(items)
+    if (querySnapshot.docs.length > 0) {
+      lastDocRef.current = querySnapshot.docs[querySnapshot.docs.length - 1]
+      setHasMore(querySnapshot.docs.length === 20)
+    } else {
+      lastDocRef.current = null
+      setHasMore(false)
+    }
   }, [db])
 
+  const loadMore = async () => {
+    if (!lastDocRef.current) return
+    setLoadingMore(true)
+    try {
+      const q = fsQuery(collection(db, 'inventario'), orderBy('nombre'), startAfter(lastDocRef.current), fsLimit(20))
+      const snap = await getDocs(q)
+      const items = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
+      setInventario(prev => [...prev, ...items])
+      if (snap.docs.length > 0) {
+        lastDocRef.current = snap.docs[snap.docs.length - 1]
+        setHasMore(snap.docs.length === 20)
+      } else {
+        lastDocRef.current = null
+        setHasMore(false)
+      }
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  // Buscar por ID exacto y por nombre (prefijo)
+  const runSearch = async (qStr) => {
+    const raw = String(qStr || '').trim()
+    if (!raw) {
+      fetchInventario()
+      return
+    }
+
+    const q = raw
+    const qLower = q.toLowerCase()
+    const qUpper = q.toUpperCase()
+    const resultsMap = new Map()
+
+    try {
+      // Probar coincidencias exactas de ID con variantes (usuario puede escribir en distinta capitalización)
+      const idVariants = [q, qLower, qUpper]
+      for (const idv of idVariants) {
+        const idQuery = fsQuery(collection(db, 'inventario'), fsWhere('id', '==', idv))
+        const idSnap = await getDocs(idQuery)
+        idSnap.docs.forEach(d => resultsMap.set(d.id, { docId: d.id, ...d.data() }))
+      }
+
+      // Buscar por nombre (rango por prefijo) y filtrar en cliente de forma case-insensitive
+      const pref = q
+      const nameQuery = fsQuery(collection(db, 'inventario'), fsWhere('nombre', '>=', pref), fsWhere('nombre', '<=', pref + '\uf8ff'), fsLimit(50))
+      const nameSnap = await getDocs(nameQuery)
+      nameSnap.docs.forEach(d => {
+        const data = { docId: d.id, ...d.data() }
+        if ((data.nombre || '').toLowerCase().startsWith(qLower)) {
+          resultsMap.set(d.id, data)
+        }
+      })
+
+      let items = Array.from(resultsMap.values())
+      // Si no hay resultados, intentar un fallback: consultar primeros 200 items y filtrar client-side
+      if (items.length === 0) {
+        try {
+          const fallbackQuery = fsQuery(collection(db, 'inventario'), orderBy('nombre'), fsLimit(200))
+          const fallbackSnap = await getDocs(fallbackQuery)
+          fallbackSnap.docs.forEach(d => {
+            const data = { docId: d.id, ...d.data() }
+            if ((data.nombre || '').toLowerCase().includes(qLower)) {
+              resultsMap.set(d.id, data)
+            }
+          })
+          items = Array.from(resultsMap.values())
+        } catch (fbErr) {
+          console.error('Fallback search error:', fbErr)
+        }
+      }
+      setInventario(items)
+      // reset pagination
+      lastDocRef.current = null
+      setHasMore(false)
+    } catch (error) {
+      console.error('Error buscando en inventario:', error)
+      alert('Error al buscar: ' + error.message)
+    }
+  }
+
   useEffect(() => {
-    fetchInventario() // eslint-disable-line react-hooks/set-state-in-effect
+    fetchInventario() // carga inicial limitada (20)
   }, [fetchInventario])
 
   const handleScan = (scannedData) => {
@@ -36,13 +129,18 @@ function Inventario({ userRole }) {
       alert('No tienes permisos para agregar productos')
       return
     }
-    if (!newItem.id || !newItem.nombre || !newItem.stock || !newItem.precioUnitario) return
+    if (!newItem.id || !newItem.nombre || !newItem.cantidad || !newItem.costo || !newItem.precio) return
     try {
       await addDoc(collection(db, 'inventario'), {
         ...newItem,
+        cantidad: parseInt(newItem.cantidad),
+        costo: parseFloat(newItem.costo),
+        precio: parseFloat(newItem.precio),
+        categoria: newItem.categoria || 'otros',
         ultimaActualizacion: new Date().toISOString()
       })
-      setNewItem({ id: '', nombre: '', stock: '', precioUnitario: '' })
+      setNewItem({ id: '', nombre: '', cantidad: '', costo: '', precio: '', categoria: 'otros' })
+      // recargar página inicial
       fetchInventario()
     } catch (error) {
       console.error('Error adding item:', error)
@@ -54,7 +152,14 @@ function Inventario({ userRole }) {
       alert('No tienes permisos para editar productos')
       return
     }
-    setNewItem(item)
+    setNewItem({
+      id: item.id || '',
+      nombre: item.nombre || '',
+      cantidad: item.cantidad || item.stock || '',
+      costo: item.costo || '',
+      precio: item.precio || '',
+      categoria: item.categoria || 'otros'
+    })
     setEditingId(item.docId)
   }
 
@@ -68,11 +173,13 @@ function Inventario({ userRole }) {
       await updateDoc(doc(db, 'inventario', editingId), {
         id: newItem.id,
         nombre: newItem.nombre,
-        stock: newItem.stock,
-        precioUnitario: newItem.precioUnitario,
+        cantidad: parseInt(newItem.cantidad),
+        costo: parseFloat(newItem.costo),
+        precio: parseFloat(newItem.precio),
+        categoria: newItem.categoria || 'otros',
         ultimaActualizacion: new Date().toISOString()
       })
-      setNewItem({ id: '', nombre: '', stock: '', precioUnitario: '' })
+      setNewItem({ id: '', nombre: '', cantidad: '', costo: '', precio: '', categoria: 'otros' })
       setEditingId(null)
       fetchInventario()
     } catch (error) {
@@ -88,7 +195,8 @@ function Inventario({ userRole }) {
     }
     try {
       await deleteDoc(doc(db, 'inventario', docId))
-      fetchInventario()
+      // quitar localmente
+      setInventario(prev => prev.filter(i => i.docId !== docId))
     } catch (error) {
       console.error('Error deleting item:', error)
       alert('Error al eliminar: ' + error.message)
@@ -174,12 +282,27 @@ function Inventario({ userRole }) {
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Stock</label>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Categoría</label>
+              <select
+                value={newItem.categoria}
+                onChange={e => setNewItem(prev => ({ ...prev, categoria: e.target.value }))}
+                style={{ width: '100%', padding: '12px', border: '2px solid #FFB6C1', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+              >
+                <option value="skincare">skincare</option>
+                <option value="maquillaje">maquillaje</option>
+                <option value="uñas">uñas</option>
+                <option value="depilación">depilación</option>
+                <option value="cuidado personal">cuidado personal</option>
+                <option value="otros">otros</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Cantidad</label>
               <input
                 type="number"
-                placeholder="Cantidad en stock"
-                value={newItem.stock}
-                onChange={(e) => setNewItem({ ...newItem, stock: e.target.value })}
+                placeholder="Cantidad en inventario"
+                value={newItem.cantidad}
+                onChange={(e) => setNewItem({ ...newItem, cantidad: e.target.value })}
                 style={{ 
                   width: '100%', 
                   padding: '12px', 
@@ -190,13 +313,34 @@ function Inventario({ userRole }) {
                 }}
               />
             </div>
+            {canAdd && userRole === 'admin' && (
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Costo</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Costo de compra"
+                  value={newItem.costo}
+                  onChange={(e) => setNewItem({ ...newItem, costo: e.target.value })}
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    border: '2px solid #FFB6C1', 
+                    borderRadius: '8px', 
+                    fontSize: '14px',
+                    boxSizing: 'border-box' 
+                  }}
+                />
+              </div>
+            )}
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Precio Unitario</label>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Precio de Venta</label>
               <input
                 type="number"
-                placeholder="Precio por unidad"
-                value={newItem.precioUnitario}
-                onChange={(e) => setNewItem({ ...newItem, precioUnitario: e.target.value })}
+                step="0.01"
+                placeholder="Precio de venta"
+                value={newItem.precio}
+                onChange={(e) => setNewItem({ ...newItem, precio: e.target.value })}
                 style={{ 
                   width: '100%', 
                   padding: '12px', 
@@ -250,6 +394,18 @@ function Inventario({ userRole }) {
       
       <div style={{ marginTop: '30px' }}>
         <h3 style={{ marginBottom: '20px', color: '#333' }}>Lista de Productos</h3>
+        <div style={{ marginBottom: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="Buscar por ID o nombre..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') runSearch(searchQuery) }}
+            style={{ padding: '8px', flex: 1, borderRadius: '6px', border: '1px solid #ddd' }}
+          />
+          <button onClick={() => runSearch(searchQuery)} style={{ padding: '8px 12px', background: '#FFB6C1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Buscar</button>
+          <button onClick={() => { setSearchQuery(''); fetchInventario() }} style={{ padding: '8px 12px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Restablecer</button>
+        </div>
         {inventario.length === 0 ? (
           <div style={{ 
             textAlign: 'center', 
@@ -261,58 +417,73 @@ function Inventario({ userRole }) {
             No hay productos en el inventario
           </div>
         ) : (
+          <>
           <div style={{ 
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-            gap: '20px',
-            width: '100%'
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '15px',
+            width: '100%',
+            maxWidth: '1200px'
           }}>
             {inventario.map(item => (
               <div key={item.docId} style={{
-                padding: '20px',
+                padding: '15px',
                 background: '#fff',
                 border: '1px solid #e0e0e0',
                 borderRadius: '10px',
                 boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '10px'
+                flexDirection: 'column',
+                gap: '10px',
+                minHeight: 'auto',
+                overflow: 'hidden'
               }}>
-                <div style={{ flex: '1', minWidth: '250px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px', color: '#333' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '5px', color: '#333', wordWrap: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.nombre}
                   </div>
-                  <div style={{ color: '#666', marginBottom: '5px' }}>
+                  <div style={{ color: '#666', marginBottom: '5px', fontSize: '13px', wordWrap: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     <strong>ID:</strong> {item.id}
                   </div>
-                  <div style={{ display: 'flex', gap: '20px', fontSize: '14px' }}>
-                    <span style={{ color: item.stock > 0 ? '#28a745' : '#dc3545' }}>
-                      <strong>Stock:</strong> {item.stock}
-                    </span>
-                    <span style={{ color: '#007bff' }}>
-                      <strong>Precio:</strong> L.{item.precioUnitario}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '20px', fontSize: '14px' }}>
-                    <span style={{ color: '#666' }}>
-                      <strong>Última Actualización:</strong> {new Date(item.ultimaActualizacion).toLocaleString()}
-                    </span>
-                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+                <div style={{ color: '#666', marginBottom: '5px', fontSize: '13px' }}>
+                  <strong>Categoría:</strong> {item.categoria || 'otros'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
+                  <span style={{ color: (item.cantidad || item.stock) > 0 ? '#28a745' : '#dc3545' }}>
+                    <strong>Cant:</strong> {item.cantidad || item.stock}
+                  </span>
+                  {userRole === 'admin' && (
+                    <span style={{ color: '#ff6b35' }}>
+                      <strong>Costo:</strong> L.{item.costo || 0}
+                    </span>
+                  )}
+                  <span style={{ color: '#007bff' }}>
+                    <strong>Precio:</strong> L.{item.precio || 0}
+                  </span>
+                  {userRole === 'admin' && item.costo && item.precio && (
+                    <span style={{ color: '#28a745', fontSize: '12px' }}>
+                      <strong>Gan:</strong> L.{(item.precio - item.costo).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '12px', color: '#999', wordWrap: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <strong>Act:</strong> {new Date(item.ultimaActualizacion).toLocaleDateString()}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginTop: 'auto' }}>
                   {canEdit && (
                     <button 
                       onClick={() => handleEditItem(item)}
                       style={{
-                        padding: '8px 16px',
+                        padding: '6px 12px',
                         backgroundColor: '#007bff',
                         color: 'white',
                         border: 'none',
                         borderRadius: '5px',
                         cursor: 'pointer',
-                        fontSize: '14px'
+                        fontSize: '12px',
+                        flex: '1',
+                        minWidth: 0
                       }}
                     >
                       Editar
@@ -322,13 +493,15 @@ function Inventario({ userRole }) {
                     <button 
                       onClick={() => handleDeleteItem(item.docId)}
                       style={{
-                        padding: '8px 16px',
+                        padding: '6px 12px',
                         backgroundColor: '#dc3545',
                         color: 'white',
                         border: 'none',
                         borderRadius: '5px',
                         cursor: 'pointer',
-                        fontSize: '14px'
+                        fontSize: '12px',
+                        flex: '1',
+                        minWidth: 0
                       }}
                     >
                       Eliminar
@@ -338,6 +511,14 @@ function Inventario({ userRole }) {
               </div>
             ))}
           </div>
+          {hasMore && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              <button onClick={loadMore} disabled={loadingMore} style={{ padding: '10px 16px', background: '#FFB6C1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                {loadingMore ? 'Cargando...' : 'Cargar más'}
+              </button>
+            </div>
+          )}
+          </>
         )}
       </div>
     </div>

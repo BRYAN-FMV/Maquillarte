@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { FaBarcode, FaSearch } from 'react-icons/fa'
 import { findProductByCode } from '../services/salesService'
+import { FaShoppingCart } from 'react-icons/fa'
 import SalesCart from './SalesCart'
 
 function NewSale({ onClose, user }) {
@@ -23,7 +25,18 @@ function NewSale({ onClose, user }) {
       const querySnapshot = await getDocs(collection(db, 'inventario'))
       const productsData = []
       querySnapshot.forEach(doc => {
-        productsData.push({ docId: doc.id, ...doc.data() })
+        const data = doc.data()
+        const productWithStock = { 
+          docId: doc.id, 
+          ...data,
+          // Normalizar el campo de stock para compatibilidad
+          stockActual: data.cantidad || data.stock || 0
+        }
+        productsData.push(productWithStock)
+      })
+      // Asegurar que cada producto tenga `precioUnitario` para el carrito
+      productsData.forEach(p => {
+        p.precioUnitario = Number(p.precio || p.precioUnitario || 0)
       })
       setProducts(productsData)
     } catch (error) {
@@ -51,15 +64,28 @@ function NewSale({ onClose, user }) {
       if (existingIndex >= 0) {
         const updated = [...prev]
         const currentQty = Number(updated[existingIndex].cantidad || 0)
-        const maxStock = Number(product.stock || 0)
+        const maxStock = Number(product.stockActual || product.cantidad || product.stock || 0)
+        
         if (currentQty < maxStock) {
           updated[existingIndex].cantidad = currentQty + 1
+          // Mantener la información del stock original del inventario
+          updated[existingIndex].stockActual = product.stockActual || product.cantidad || product.stock || 0
+          updated[existingIndex].stockOriginal = product.stockActual || product.cantidad || product.stock || 0
+          updated[existingIndex].cantidadInventario = product.stockActual || product.cantidad || product.stock || 0
         } else {
           alert(`No se puede agregar más. Stock máximo: ${maxStock}`)
         }
         return updated
       } else {
-        return [...prev, { ...product, cantidad: 1 }]
+        // Agregar nuevo producto con información completa del stock
+        const newCartItem = { 
+          ...product, 
+          cantidad: 1,
+          stockActual: product.stockActual || product.cantidad || product.stock || 0,
+          stockOriginal: product.stockActual || product.cantidad || product.stock || 0,
+          cantidadInventario: product.stockActual || product.cantidad || product.stock || 0
+        }
+        return [...prev, newCartItem]
       }
     })
     
@@ -106,189 +132,221 @@ function NewSale({ onClose, user }) {
     }}>
       <div style={{
         backgroundColor: 'white',
-        borderRadius: '15px',
+        borderRadius: '12px',
+        padding: window.innerWidth < 600 ? '12px' : '16px',
         width: '100%',
-        maxWidth: '800px',
-        maxHeight: '90vh',
-        overflow: 'auto',
-        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)'
+        maxWidth: '700px',
+        maxHeight: window.innerWidth < 600 ? '100vh' : '90vh',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
       }}>
         {/* Header */}
-        <div style={{
-          padding: '20px',
-          borderBottom: '1px solid #eee',
-          display: 'flex',
-          justifyContent: 'space-between',
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
           alignItems: 'center',
-          background: '#FF69B4',
-          color: 'white',
-          borderRadius: '15px 15px 0 0'
+          marginBottom: window.innerWidth < 600 ? '12px' : '15px',
+          flexShrink: 0
         }}>
-          <h2 style={{ margin: 0, 
-            color: 'white' 
-            }}>Nueva Venta</h2>
+          <h2 style={{ 
+            color: '#333', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            margin: 0,
+            fontSize: window.innerWidth < 600 ? '16px' : '18px'
+          }}>
+            <FaShoppingCart /> Nueva Venta
+          </h2>
           <button 
             onClick={onClose}
             style={{
-              background: 'transparent',
-              border: '2px solid white',
-              color: 'white',
-              borderRadius: '50%',
-              width: '35px',
-              height: '35px',
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
               cursor: 'pointer',
-              fontSize: '18px',
-              fontWeight: 'bold'
+              color: '#666'
             }}
           >
             ×
           </button>
         </div>
 
-        {/* Content */}
-        <div style={{ padding: '20px' }}>
-          {/* Opciones de agregar producto */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-            gap: '15px', 
-            marginBottom: '20px' 
-          }}>
-            {/* Búsqueda manual */}
-            <div style={{
-              border: '2px solid #FFB6C1',
-              borderRadius: '10px',
-              padding: '15px'
-            }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#FF69B4' }}>Buscar Producto</h4>
-              <input
-                type="text"
-                placeholder="Buscar por código o nombre..."
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  fontSize: '14px',
-                  boxSizing: 'border-box'
-                }}
-              />
-              
-              {/* Resultados de búsqueda */}
-              {searchResults.length > 0 && (
-                <div style={{
-                  maxHeight: '150px',
-                  overflow: 'auto',
-                  marginTop: '10px',
-                  border: '1px solid #eee',
-                  borderRadius: '5px'
-                }}>
-                  {searchResults.map(product => (
-                    <div
-                      key={product.docId}
-                      style={{
-                        padding: '10px',
-                        borderBottom: '1px solid #f0f0f0',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                      onClick={() => addToCart(product)}
-                      onMouseEnter={(e) => e.target.style.background = '#f9f9f9'}
-                      onMouseLeave={(e) => e.target.style.background = 'white'}
-                    >
-                      <div>
-                        <strong>{product.nombre}</strong>
-                        <div style={{ fontSize: '12px', color: '#666' }}>
-                          ID: {product.id} | Stock: {product.stock} | ${product.precioUnitario}
-                        </div>
+        {/* Búsqueda y Escáner - Opciones compactas */}
+        <div style={{ 
+          display: 'flex',
+          flexDirection: window.innerWidth < 600 ? 'column' : 'row',
+          gap: window.innerWidth < 600 ? '8px' : '10px',
+          marginBottom: '12px',
+          flexShrink: 0,
+          alignItems: window.innerWidth < 600 ? 'stretch' : 'center'
+        }}>
+          {/* Búsqueda */}
+          <div style={{ flex: 1, minWidth: '0', width: window.innerWidth < 600 ? '100%' : 'auto', display: 'flex', gap: '8px' }}>
+            <input
+              type="text"
+              placeholder="Buscar por código o nombre..."
+              value={searchTerm}
+              onChange={(e) => handleSearch(e.target.value)}
+              style={{
+                flex: 1,
+                padding: window.innerWidth < 600 ? '14px 12px' : '8px 12px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                fontSize: window.innerWidth < 600 ? '16px' : '13px',
+                boxSizing: 'border-box',
+                minHeight: window.innerWidth < 600 ? '48px' : 'auto'
+              }}
+            />
+            {/* Resultados de búsqueda - Sin position absolute */}
+            {searchResults.length > 0 && (
+              <div style={{
+                maxHeight: window.innerWidth < 600 ? '240px' : '180px',
+                overflow: 'auto',
+                marginTop: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                backgroundColor: 'white',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+              }}>
+                {searchResults.map(product => (
+                  <div
+                    key={product.docId}
+                    style={{
+                      padding: window.innerWidth < 600 ? '12px 10px' : '8px',
+                      borderBottom: '1px solid #f0f0f0',
+                      cursor: 'pointer',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: '10px',
+                      alignItems: 'center',
+                      fontSize: window.innerWidth < 600 ? '14px' : '12px',
+                      background: 'white',
+                      minHeight: window.innerWidth < 600 ? '50px' : 'auto'
+                    }}
+                    onClick={() => addToCart(product)}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                  >
+                    <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                      <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: window.innerWidth < 600 ? '15px' : '13px' }}>
+                        {product.nombre}
+                      </strong>
+                      <div style={{ fontSize: window.innerWidth < 600 ? '12px' : '11px', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        ${product.precioUnitario} | Stock: {product.stockActual || product.cantidad || product.stock || 0}
                       </div>
-                      <button style={{
-                        background: '#FFB6C1',
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        addToCart(product)
+                      }}
+                      style={{
+                        background: '#FF69B4',
                         border: 'none',
                         color: 'white',
-                        padding: '5px 10px',
-                        borderRadius: '3px',
-                        fontSize: '12px'
-                      }}>
-                        Agregar
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Escáner */}
-            <div style={{
-              border: '2px solid #FF69B4',
-              borderRadius: '10px',
-              padding: '15px',
-              textAlign: 'center'
-            }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#FF69B4' }}>Escanear Código</h4>
-              <p style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#666' }}>
-                Usa la cámara para escanear códigos de barras
-              </p>
-              <button
-                onClick={handleScannerToggle}
-                disabled={loading}
-                style={{
-                  background: showScanner ? '#ff4757' : '#FF69B4',
-                  color: 'white',
-                  border: 'none',
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  width: '100%'
-                }}
-              >
-                {loading ? 'Procesando...' : showScanner ? 'Cerrar Escáner' : 'Abrir Escáner'}
-              </button>
-              
-              {showScanner && (
-                <div style={{ marginTop: '15px' }}>
-                  <ScannerComponent onScanResult={handleScanResult} />
-                </div>
-              )}
-            </div>
+                        padding: window.innerWidth < 600 ? '12px 14px' : '6px 10px',
+                        borderRadius: '4px',
+                        fontSize: window.innerWidth < 600 ? '13px' : '11px',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                        minHeight: window.innerWidth < 600 ? '40px' : 'auto'
+                      }}
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Carrito */}
-          {cartItems.length > 0 && (
-            <div style={{
-              border: '2px solid #28a745',
-              borderRadius: '10px',
-              padding: '15px',
-              marginTop: '20px'
-            }}>
-              <h4 style={{ margin: '0 0 15px 0', color: '#28a745' }}>🛒 Carrito de Venta</h4>
-              <SalesCart 
-                items={cartItems} 
-                onClose={() => {
-                  setCartItems([])
-                  onClose()
-                }} 
-                onUpdateItems={setCartItems}
-                user={user}
-                isModal={true}
-              />
-            </div>
-          )}
+          {/* Botón Escáner */}
+          <button
+            onClick={handleScannerToggle}
+            disabled={loading}
+            style={{
+              backgroundColor: showScanner ? '#ff4757' : '#2196f3',
+              color: 'white',
+              border: 'none',
+              padding: window.innerWidth < 600 ? '14px 16px' : '8px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: window.innerWidth < 600 ? '14px' : '12px',
+              fontWeight: 'bold',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap',
+              width: window.innerWidth < 600 ? '100%' : 'auto',
+              minHeight: window.innerWidth < 600 ? '44px' : 'auto'
+            }}
+          >
+            <FaBarcode />
+            {loading ? 'Procesando...' : showScanner ? 'Cerrar' : 'Escanear'}
+          </button>
+        </div>
 
-          {cartItems.length === 0 && (
+        {/* Escáner - Si está abierto */}
+        {showScanner && (
+          <div style={{
+            marginBottom: '12px',
+            padding: '12px',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '6px',
+            border: '1px solid #ddd',
+            flexShrink: 0
+          }}>
+            <ScannerComponent onScanResult={handleScanResult} />
+          </div>
+        )}
+
+        {/* Carrito */}
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          {cartItems.length > 0 ? (
+            <>
+              <div style={{
+                fontWeight: 'bold',
+                fontSize: '13px',
+                marginBottom: '8px',
+                color: '#333',
+                flexShrink: 0
+              }}>
+                <FaShoppingCart /> Carrito ({cartItems.length} items)
+              </div>
+              <div style={{ overflow: 'auto', flex: 1, minHeight: 0, marginBottom: '12px' }}>
+                <SalesCart 
+                  items={cartItems} 
+                  onClose={() => {
+                    setCartItems([])
+                    onClose()
+                  }} 
+                  onUpdateItems={setCartItems}
+                  user={user}
+                  isModal={true}
+                  onSaleCompleted={loadProducts}
+                />
+              </div>
+            </>
+          ) : (
             <div style={{
-              textAlign: 'center',
-              padding: '40px',
-              color: '#666',
-              fontSize: '16px'
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              color: '#999',
+              fontSize: '13px',
+              padding: '20px'
             }}>
-              <p>🛒 El carrito está vacío</p>
-              <p style={{ fontSize: '14px' }}>Busca o escanea productos para comenzar una venta</p>
+              <p style={{ margin: '0 0 8px 0', fontSize: '24px' }}><FaShoppingCart /></p>
+              <p style={{ margin: 0 }}>El carrito está vacío</p>
+              <p style={{ fontSize: '12px', margin: '4px 0 0 0' }}>Busca o escanea productos</p>
             </div>
           )}
         </div>

@@ -11,6 +11,16 @@ html {
   overflow-x: hidden;
 }
 
+/* Ocultar barra de scroll del sidebar */
+.sidebar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE y Edge */
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari y Opera */
+}
+
 #root {
   width: 100%;
   max-width: none;
@@ -83,7 +93,7 @@ ul {
 }
 
 li {
-  background-color: #FFE4E1;
+  background-color: #f8cec9;
   margin: 10px 0;
   padding: 10px;
   border-radius: 5px;
