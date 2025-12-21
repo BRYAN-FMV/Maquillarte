@@ -439,10 +439,27 @@ function Reports({ role = 'admin' }) {
                   fontSize: '12px',
                   marginRight: '15px'
                 }}>#{index + 1}</span>
-                <span style={{ flex: 1, color: '#2c3e50', fontWeight: '500' }}>{product.name}</span>
-                <span style={{ color: '#666', fontSize: '14px' }}>
-                  {product.sales} {product.sales === 1 ? 'venta' : 'ventas'}
-                </span>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ color: '#2c3e50', fontWeight: '500', marginBottom: '4px' }}>
+                    {product.name}
+                  </span>
+                  {product.stockInicial !== undefined && (
+                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#666' }}>
+                      <span>Stock inicial: {product.stockInicial}</span>
+                      <span>Stock actual: {product.stockActual}</span>
+                    </div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <span style={{ color: '#e91e63', fontWeight: 'bold', fontSize: '16px' }}>
+                    {product.sales} {product.sales === 1 ? 'venta' : 'ventas'}
+                  </span>
+                  {product.precio > 0 && (
+                    <span style={{ color: '#666', fontSize: '12px' }}>
+                      ${product.precio.toLocaleString()}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

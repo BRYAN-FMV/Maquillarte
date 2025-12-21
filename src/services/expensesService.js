@@ -291,7 +291,6 @@ export const deleteExpense = async (expenseId) => {
     throw error
   }
 }
-
 // Eliminar compra y restaurar inventario (y gasto asociado si se encuentra)
 export const deletePurchase = async (purchaseId) => {
   try {
