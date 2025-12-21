@@ -18,8 +18,8 @@ export const getReportsData = async () => {
   // Calcular métricas de ventas
   const salesMetrics = calculateSalesMetrics(salesData)
   
-  // Calcular métricas de inventario
-  const inventoryMetrics = calculateInventoryMetrics(inventoryData, salesData)
+  // Calcular métricas de inventario (sin fecha de inicio para reporte general)
+  const inventoryMetrics = await calculateInventoryMetrics(inventoryData, salesData)
   
   return {
     sales: salesMetrics,
@@ -61,12 +61,18 @@ const getSalesDataFromFirestore = async () => {
 const getInventoryDataFromFirestore = async () => {
   try {
     const inventarioSnapshot = await getDocs(collection(db, 'inventario'))
-    return inventarioSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      quantity: Number(doc.data().stock || 0),
-      minStock: Number(doc.data().minStock || 5)
-    }))
+    return inventarioSnapshot.docs.map(doc => {
+      const data = doc.data()
+      // Usar stock como prioridad, luego cantidad
+      const stockActual = Number(data.stock || data.cantidad || 0)
+      return {
+        id: doc.id,
+        ...data,
+        quantity: stockActual,
+        stock: stockActual,
+        minStock: Number(data.minStock || 5)
+      }
+    })
   } catch (error) {
     console.error('Error obteniendo inventario de Firestore:', error)
     return []
@@ -116,15 +122,87 @@ const calculateSalesMetrics = (salesData) => {
     }
   })
 
+  // Agrupar ventas por categoría (si los items tienen 'categoria' o 'categoriaProducto')
+  const salesByCategoryMap = {}
+  salesData.forEach(sale => {
+    if (sale.items && Array.isArray(sale.items)) {
+      sale.items.forEach(item => {
+        const category = item.categoria || item.categoriaProducto || item.categoriaVenta || 'Sin categoría'
+        const quantity = Number(item.cantidad || 1)
+        salesByCategoryMap[category] = (salesByCategoryMap[category] || 0) + quantity
+      })
+    }
+  })
+
+  const salesByCategory = Object.entries(salesByCategoryMap).map(([category, sales]) => ({ category, sales }))
+    .sort((a, b) => b.sales - a.sales)
+
   return {
     totalSales,
     totalRevenue,
     averageTicket,
     salesByDay
+    ,salesByCategory
   }
 }
 
-const calculateInventoryMetrics = (inventoryData, salesData) => {
+// Calcular inventario inicial basado en ventas y compras desde una fecha específica
+const calculateInitialStock = async (productName, startDate, currentStock) => {
+  try {
+    // Obtener todas las ventas desde startDate hasta hoy
+    const ventasSnapshot = await getDocs(collection(db, 'ventaEnc'))
+    let totalVendido = 0
+    
+    for (const ventaDoc of ventasSnapshot.docs) {
+      const ventaData = ventaDoc.data()
+      if (!ventaData.fechaHora) continue
+      
+      const ventaDate = new Date(ventaData.fechaHora)
+      const start = new Date(startDate)
+      if (ventaDate < start) continue
+      
+      // Obtener detalles de la venta
+      const detallesQuery = query(collection(db, 'ventaDet'), where('idVentaEnc', '==', ventaDoc.id))
+      const detallesSnapshot = await getDocs(detallesQuery)
+      
+      detallesSnapshot.docs.forEach(detDoc => {
+        const item = detDoc.data()
+        if (item.nombre === productName) {
+          totalVendido += Number(item.cantidad || 0)
+        }
+      })
+    }
+    
+    // Obtener compras desde startDate hasta hoy
+    const comprasSnapshot = await getDocs(collection(db, 'compras'))
+    let totalComprado = 0
+    
+    comprasSnapshot.docs.forEach(compraDoc => {
+      const compraData = compraDoc.data()
+      if (!compraData.fechaHora) return
+      
+      const compraDate = new Date(compraData.fechaHora)
+      const start = new Date(startDate)
+      if (compraDate < start) return
+      
+      const productos = compraData.productos || []
+      productos.forEach(prod => {
+        if (prod.nombre === productName) {
+          totalComprado += Number(prod.cantidad || 0)
+        }
+      })
+    })
+    
+    // Stock inicial = Stock actual - Compras desde fecha + Ventas desde fecha
+    const stockInicial = currentStock - totalComprado + totalVendido
+    return Math.max(0, stockInicial) // No puede ser negativo
+  } catch (error) {
+    console.warn(`Error calculando stock inicial para ${productName}:`, error)
+    return 0
+  }
+}
+
+const calculateInventoryMetrics = async (inventoryData, salesData, startDate = null) => {
   if (!inventoryData || inventoryData.length === 0) {
     return {
       totalProducts: 0,
@@ -135,13 +213,30 @@ const calculateInventoryMetrics = (inventoryData, salesData) => {
   }
 
   const totalProducts = inventoryData.length
-  const lowStock = inventoryData.filter(product => 
-    (product.quantity || 0) > 0 && (product.quantity || 0) <= (product.minStock || 5)
-  ).length
-  const outOfStock = inventoryData.filter(product => (product.quantity || 0) === 0).length
+  
+  // Filtrar solo productos activos para el cálculo de stock
+  const activeProducts = inventoryData.filter(product => product.activo !== false)
+  
+  const lowStock = activeProducts.filter(product => {
+    const qty = Number(product.quantity || product.stock || 0)
+    const minStock = Number(product.minStock || 5)
+    return qty > 0 && qty <= minStock
+  }).length
+  
+  const outOfStock = activeProducts.filter(product => {
+    const qty = Number(product.quantity || product.stock || 0)
+    return qty === 0
+  }).length
 
   // Calcular productos más vendidos basado en las ventas de Firestore
   const productSales = {}
+  const productInventoryMap = {}
+  
+  // Crear mapa de productos de inventario por nombre
+  inventoryData.forEach(product => {
+    const name = product.nombre || product.name || 'Producto sin nombre'
+    productInventoryMap[name] = product
+  })
 
   // Contar ventas por producto
   salesData.forEach(sale => {
@@ -154,26 +249,72 @@ const calculateInventoryMetrics = (inventoryData, salesData) => {
     }
   })
 
-  // Crear array de productos más vendidos
-  const topProducts = Object.entries(productSales)
-    .map(([name, sales]) => ({ name, sales }))
-    .sort((a, b) => b.sales - a.sales)
-    .slice(0, 5) // Top 5 productos
+  // Crear array de productos (incluir todos los del inventario, ventas=0 si no hay registro)
+  const allProductNames = new Set([
+    ...Object.keys(productInventoryMap),
+    ...Object.keys(productSales)
+  ])
 
-  // Si no hay ventas, mostrar los primeros productos del inventario
-  if (topProducts.length === 0) {
-    const fallbackProducts = inventoryData.slice(0, 5).map(product => ({
-      name: product.nombre || product.name || 'Producto sin nombre',
-      sales: 0
-    }))
-    topProducts.push(...fallbackProducts)
+  const topProductsPromises = Array.from(allProductNames).map(async (name) => {
+    const sales = productSales[name] || 0
+    const inventoryProduct = productInventoryMap[name]
+    const currentStock = inventoryProduct ? Number(inventoryProduct.quantity || inventoryProduct.stock || 0) : 0
+
+    let stockInicial = 0
+    if (startDate && inventoryProduct) {
+      stockInicial = await calculateInitialStock(name, startDate, currentStock)
+    }
+
+    return {
+      name,
+      sales,
+      stockActual: currentStock,
+      stockInicial: stockInicial,
+      precio: inventoryProduct ? Number(inventoryProduct.precio || 0) : 0
+    }
+  })
+  
+  const topProductsWithStock = await Promise.all(topProductsPromises)
+  // Ordenar todos los productos por ventas (desc)
+  const sortedAll = topProductsWithStock.sort((a, b) => b.sales - a.sales)
+  const topProductsAll = sortedAll.slice() // copia de todos
+  const topProducts = topProductsAll.slice(0, 5) // Top 5 para la UI
+
+  // Si no hay ventas en topProductsAll, construir fallback con todo el inventario
+  if (topProductsAll.length === 0) {
+    const fallbackPromises = inventoryData.map(async product => {
+      const name = product.nombre || product.name || 'Producto sin nombre'
+      const currentStock = Number(product.quantity || product.stock || 0)
+      let stockInicial = 0
+      
+      if (startDate) {
+        stockInicial = await calculateInitialStock(name, startDate, currentStock)
+      }
+      
+      return {
+        name,
+        sales: 0,
+        stockActual: currentStock,
+        stockInicial: stockInicial,
+        precio: Number(product.precio || 0)
+      }
+    })
+    const fallbackProductsAll = await Promise.all(fallbackPromises)
+    return {
+      totalProducts,
+      lowStock,
+      outOfStock,
+      topProducts: fallbackProductsAll.slice(0,5),
+      topProductsAll: fallbackProductsAll
+    }
   }
 
   return {
     totalProducts,
     lowStock,
     outOfStock,
-    topProducts
+    topProducts,
+    topProductsAll
   }
 }
 
@@ -520,6 +661,10 @@ export const getFilteredReportsData = async (startDate, endDate) => {
     const providersData = await getProvidersDataFromFirestore()
 
     // Filtrar ventas por fecha - comparación simple de strings YYYY-MM-DD
+
+    // Los gastos ya incluyen las compras registradas, no necesitamos duplicarlas
+
+    // Filtrar ventas por fecha usando la fecha local (YYYY-MM-DD)
     const filteredSales = allSalesData.filter(sale => {
       if (!sale.timestamp) {
         return false
@@ -535,14 +680,10 @@ export const getFilteredReportsData = async (startDate, endDate) => {
 
     // Filtrar gastos por fecha - comparación simple de strings YYYY-MM-DD
     const filteredExpenses = allExpensesData.filter(expense => {
-      if (!expense.fechaHora && !expense.fecha) {
-        return false
-      }
-      
-      // Usar fecha si existe, si no usar fechaHora
-      let expenseDateString = expense.fecha || getDateStringFromISO(expense.fechaHora)
+      if (!expense.fechaHora && !expense.fecha) return false
+      // Usar fecha si existe (YYYY-MM-DD), si no usar la parte fecha del timestamp ISO
+      const expenseDateString = expense.fecha || getDateStringFromISO(expense.fechaHora)
       if (!expenseDateString) return false
-      
       // Comparar fechas como strings (YYYY-MM-DD)
       return expenseDateString >= startDate && expenseDateString <= endDate
     })
@@ -552,7 +693,7 @@ export const getFilteredReportsData = async (startDate, endDate) => {
 
     // Calcular métricas con datos filtrados
     const salesMetrics = calculateSalesMetrics(filteredSales)
-    const inventoryMetrics = calculateInventoryMetrics(inventoryData, filteredSales)
+    const inventoryMetrics = await calculateInventoryMetrics(inventoryData, filteredSales, startDate)
     const expensesMetrics = calculateExpensesMetrics(filteredExpenses)
     const providersMetrics = calculateProvidersMetrics(providersData)
     const profitabilityMetrics = calculateProfitabilityMetrics(filteredSales, providersData, inventoryData)
@@ -645,6 +786,19 @@ const generatePDFReport = (reportData, fileName, reportType) => {
         margin: { left: 14 }
       })
     }
+
+    // Tabla de ventas por categoría
+    if (reportData.sales.salesByCategory && reportData.sales.salesByCategory.length > 0) {
+      yPosition = doc.previousAutoTable ? doc.previousAutoTable.finalY + 8 : yPosition + 8
+      const catTable = reportData.sales.salesByCategory.map(c => [c.category, c.sales])
+      autoTable(doc, {
+        head: [['Categoría', 'Ventas']],
+        body: catTable,
+        startY: yPosition,
+        headStyles: { fillColor: [33, 150, 243] },
+        margin: { left: 14 }
+      })
+    }
   } else {
     // Reporte de Inventario
     doc.setFontSize(16)
@@ -661,16 +815,21 @@ const generatePDFReport = (reportData, fileName, reportType) => {
     doc.text(`Productos Sin Stock: ${reportData.inventory.outOfStock}`, 14, yPosition)
     yPosition += 15
     
-    // Tabla de productos más vendidos
-    if (reportData.inventory.topProducts && reportData.inventory.topProducts.length > 0) {
-      const topProductsData = reportData.inventory.topProducts.map((product, index) => [
+    // Tabla de productos más vendidos (usar lista completa si está disponible)
+    const productsForExport = (reportData.inventory.topProductsAll && reportData.inventory.topProductsAll.length > 0)
+      ? reportData.inventory.topProductsAll
+      : (reportData.inventory.topProducts || [])
+    if (productsForExport && productsForExport.length > 0) {
+      const topProductsData = productsForExport.map((product, index) => [
         index + 1,
         product.name,
-        product.sales
+        product.sales,
+        product.stockInicial !== undefined ? product.stockInicial : '-',
+        product.stockActual !== undefined ? product.stockActual : '-'
       ])
       
       autoTable(doc, {
-        head: [['#', 'Producto', 'Ventas']],
+        head: [['#', 'Producto', 'Ventas', 'Stock Inicial', 'Stock Actual']],
         body: topProductsData,
         startY: yPosition,
         headStyles: { fillColor: [233, 30, 99] },
@@ -702,6 +861,16 @@ const generateExcelReport = (reportData, fileName, reportType) => {
       ['Día', 'Cantidad de Ventas'],
       ...reportData.sales.salesByDay.map(day => [day.day, day.sales])
     ]
+
+    // Añadir sección Ventas por categoría
+    if (reportData.sales.salesByCategory && reportData.sales.salesByCategory.length > 0) {
+      summaryData.push([''])
+      summaryData.push(['Ventas por Categoría'])
+      summaryData.push(['Categoría', 'Ventas'])
+      reportData.sales.salesByCategory.forEach(c => {
+        summaryData.push([c.category, c.sales])
+      })
+    }
     
     const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
     
@@ -724,12 +893,23 @@ const generateExcelReport = (reportData, fileName, reportType) => {
       ['Productos Sin Stock:', reportData.inventory.outOfStock],
       [''],
       ['Productos Más Vendidos'],
-      ['Posición', 'Producto', 'Ventas'],
-      ...reportData.inventory.topProducts.map((product, index) => [
-        index + 1,
-        product.name,
-        product.sales
-      ])
+      ['Posición', 'Producto', 'Ventas', 'Stock Inicial', 'Stock Actual'],
+      ...((reportData.inventory.topProductsAll && reportData.inventory.topProductsAll.length > 0)
+        ? reportData.inventory.topProductsAll.map((product, index) => [
+            index + 1,
+            product.name,
+            product.sales,
+            product.stockInicial !== undefined ? product.stockInicial : '-',
+            product.stockActual !== undefined ? product.stockActual : '-'
+          ])
+        : (reportData.inventory.topProducts || []).map((product, index) => [
+            index + 1,
+            product.name,
+            product.sales,
+            product.stockInicial !== undefined ? product.stockInicial : '-',
+            product.stockActual !== undefined ? product.stockActual : '-'
+          ])
+      )
     ]
     
     const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
