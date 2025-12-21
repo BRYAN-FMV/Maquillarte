@@ -133,6 +133,33 @@ function Sidebar({ setView, user, role, onLogout }) {
               <FaChartBar />
             </button>
           )}
+          {canViewSales && (
+            <button 
+              onClick={() => setView('reports')} 
+              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '20px' }}
+              title="Reportes"
+            >
+              <FaFileAlt />
+            </button>
+          )}
+          {canAccessProviders && (
+            <button 
+              onClick={() => setView('providers')} 
+              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '20px' }}
+              title="Proveedores"
+            >
+              <FaTruck />
+            </button>
+          )}
+          {canAccessExpenses && (
+            <button 
+              onClick={() => setView('expenses')} 
+              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '20px' }}
+              title="Gastos"
+            >
+              <FaDollarSign />
+            </button>
+          )}
           {canManageUsers && (
             <button 
               onClick={() => setView('users')} 
