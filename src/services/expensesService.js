@@ -254,8 +254,6 @@ export const getFinancialMetrics = async (startDate, endDate) => {
   }
 }
 
-<<<<<<< Updated upstream
-=======
 // Eliminar gasto; si está vinculado a una compra, eliminar también la compra asociada
 export const deleteExpense = async (expenseId) => {
   try {
@@ -313,8 +311,6 @@ export const deleteExpense = async (expenseId) => {
     throw error
   }
 }
-
->>>>>>> Stashed changes
 // Eliminar compra y restaurar inventario (y gasto asociado si se encuentra)
 export const deletePurchase = async (purchaseId) => {
   try {
