@@ -12,7 +12,7 @@ function SalesCart({ items, onClose, onUpdateItems, user, onSaleCompleted }) {
 
   const updateCantidad = (index, value) => {
     const clone = [...items]
-    const cantidad = Number(value) || 0
+    const cantidad = Number(value) || 1 // Mínimo 1 en lugar de 0
     const stockDisponible = Number(clone[index].stockActual || clone[index].stockOriginal || clone[index].cantidad || clone[index].stock || 0)
     
     // Validar contra el stock real del inventario
@@ -20,12 +20,9 @@ function SalesCart({ items, onClose, onUpdateItems, user, onSaleCompleted }) {
       alert(`Stock insuficiente. Disponible: ${stockDisponible}`)
       return
     }
-    if (cantidad <= 0) {
-      // Remove item if quantity is 0
-      removeItem(index)
-      return
-    }
-    clone[index].cantidad = cantidad
+    
+    // Asegurar que la cantidad sea al menos 1
+    clone[index].cantidad = Math.max(1, cantidad)
     onUpdateItems(clone)
   }
 
@@ -163,7 +160,34 @@ function SalesCart({ items, onClose, onUpdateItems, user, onSaleCompleted }) {
               <div style={{ fontSize: '12px', color: '#666' }}>Stock disponible: {it.stockActual || it.stockOriginal || it.cantidadInventario || 0}</div>
             </div>
             <div style={{ fontSize: '14px' }}>L{Number(it.precioUnitario || 0).toFixed(2)}</div>
-            <div>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: window.innerWidth < 600 ? '4px' : '2px'
+            }}>
+              {/* Botón disminuir - especialmente útil para móviles */}
+              <button
+                onClick={() => updateCantidad(idx, Math.max(1, (it.cantidad || 1) - 1))}
+                disabled={it.cantidad <= 1}
+                style={{
+                  padding: window.innerWidth < 600 ? '8px 10px' : '4px 6px',
+                  background: it.cantidad <= 1 ? '#ccc' : '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: it.cantidad <= 1 ? 'not-allowed' : 'pointer',
+                  fontSize: window.innerWidth < 600 ? '16px' : '14px',
+                  minHeight: window.innerWidth < 600 ? '36px' : 'auto',
+                  minWidth: window.innerWidth < 600 ? '36px' : '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Disminuir cantidad"
+              >
+                -
+              </button>
+              
               <input 
                 type="number" 
                 min="1" 
@@ -171,24 +195,51 @@ function SalesCart({ items, onClose, onUpdateItems, user, onSaleCompleted }) {
                 value={it.cantidad} 
                 onChange={e => updateCantidad(idx, e.target.value)} 
                 style={{ 
-                  width: '60px', 
-                  padding: window.innerWidth < 600 ? '10px' : '4px',
+                  width: window.innerWidth < 600 ? '50px' : '60px', 
+                  padding: window.innerWidth < 600 ? '8px 4px' : '4px',
                   fontSize: window.innerWidth < 600 ? '14px' : '12px',
-                  minHeight: window.innerWidth < 600 ? '36px' : 'auto'
+                  minHeight: window.innerWidth < 600 ? '36px' : 'auto',
+                  textAlign: 'center',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd'
                 }} 
               />
+              
+              {/* Botón aumentar - especialmente útil para móviles */}
+              <button
+                onClick={() => updateCantidad(idx, Math.min((it.stockActual || it.stockOriginal || it.cantidadInventario || 0), (it.cantidad || 0) + 1))}
+                disabled={it.cantidad >= (it.stockActual || it.stockOriginal || it.cantidadInventario || 0)}
+                style={{
+                  padding: window.innerWidth < 600 ? '8px 10px' : '4px 6px',
+                  background: it.cantidad >= (it.stockActual || it.stockOriginal || it.cantidadInventario || 0) ? '#ccc' : '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: it.cantidad >= (it.stockActual || it.stockOriginal || it.cantidadInventario || 0) ? 'not-allowed' : 'pointer',
+                  fontSize: window.innerWidth < 600 ? '16px' : '14px',
+                  minHeight: window.innerWidth < 600 ? '36px' : 'auto',
+                  minWidth: window.innerWidth < 600 ? '36px' : '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Aumentar cantidad"
+              >
+                +
+              </button>
             </div>
             <button 
               onClick={() => removeItem(idx)}
               style={{ 
-                padding: window.innerWidth < 600 ? '10px 12px' : '4px 8px', 
+                padding: window.innerWidth < 600 ? '6px 8px' : '4px 8px', 
                 background: '#ff4444', 
                 color: 'white', 
                 border: 'none', 
                 cursor: 'pointer', 
                 borderRadius: '3px',
-                fontSize: window.innerWidth < 600 ? '14px' : '12px',
-                minHeight: window.innerWidth < 600 ? '36px' : 'auto',
+                fontSize: window.innerWidth < 600 ? '12px' : '12px',
+                minHeight: window.innerWidth < 600 ? '28px' : 'auto',
+                minWidth: window.innerWidth < 600 ? '28px' : 'auto',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
