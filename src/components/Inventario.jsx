@@ -400,17 +400,17 @@ function Inventario({ userRole }) {
       
       <div style={{ marginTop: '30px' }}>
         <h3 style={{ marginBottom: '20px', color: '#333' }}>Lista de Productos</h3>
-        <div style={{ marginBottom: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ marginBottom: '12px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', justifyContent: 'flex-start' }}>
           <input
             type="text"
             placeholder="Buscar por ID o nombre..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') runSearch(searchQuery) }}
-            style={{ padding: '8px', flex: 1, borderRadius: '6px', border: '1px solid #ddd' }}
+            style={{ padding: '8px', flex: '1 1 200px', minWidth: '0', borderRadius: '6px', border: '1px solid #ddd', boxSizing: 'border-box' }}
           />
-          <button onClick={() => runSearch(searchQuery)} style={{ padding: '8px 12px', background: '#FFB6C1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Buscar</button>
-          <button onClick={() => { setSearchQuery(''); fetchInventario() }} style={{ padding: '8px 12px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Restablecer</button>
+          <button onClick={() => runSearch(searchQuery)} style={{ padding: '8px 12px', background: '#FFB6C1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap', flex: '0 0 auto' }}>Buscar</button>
+          <button onClick={() => { setSearchQuery(''); fetchInventario() }} style={{ padding: '8px 12px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap', flex: '0 0 auto' }}>Restablecer</button>
         </div>
         {inventario.length === 0 ? (
           <div style={{ 
