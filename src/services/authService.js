@@ -58,7 +58,8 @@ export const getUserRole = async (uid) => {
     const userDoc = await getDoc(doc(db, 'users', uid))
     if (userDoc.exists()) {
       const data = userDoc.data()
-      return data.role || 'user'
+      const role = (data.role || 'user').toString().toLowerCase().trim()
+      return role
     }
     return 'user' // Rol por defecto
   } catch (error) {
