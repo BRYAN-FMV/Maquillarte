@@ -16,7 +16,7 @@ export const getReportsData = async () => {
   const inventoryData = await getInventoryDataFromFirestore()
   
   // Calcular métricas de ventas
-  const salesMetrics = calculateSalesMetrics(salesData)
+  const salesMetrics = calculateSalesMetrics(salesData, inventoryData)
   
   // Calcular métricas de inventario (sin fecha de inicio para reporte general)
   const inventoryMetrics = await calculateInventoryMetrics(inventoryData, salesData)
@@ -79,8 +79,13 @@ const getInventoryDataFromFirestore = async () => {
   }
 }
 
-const calculateSalesMetrics = (salesData) => {
-  if (!salesData || salesData.length === 0) {
+const calculateSalesMetrics = (salesData, inventoryData = []) => {
+  try {
+    // Asegurar que trabajamos con arrays
+    if (!Array.isArray(salesData)) salesData = []
+    if (!Array.isArray(inventoryData)) inventoryData = []
+
+    if (salesData.length === 0) {
     return {
       totalSales: 0,
       totalRevenue: 0,
@@ -98,7 +103,7 @@ const calculateSalesMetrics = (salesData) => {
   }
 
   const totalSales = salesData.length
-  const totalRevenue = salesData.reduce((sum, sale) => sum + (sale.total || 0), 0)
+  const totalRevenue = salesData.reduce((sum, sale) => sum + (sale && sale.total ? Number(sale.total) : 0), 0)
   const averageTicket = totalSales > 0 ? Math.round(totalRevenue / totalSales) : 0
 
   // Agrupar ventas por día de la semana
@@ -123,26 +128,109 @@ const calculateSalesMetrics = (salesData) => {
   })
 
   // Agrupar ventas por categoría (si los items tienen 'categoria' o 'categoriaProducto')
+  // Normalizar y agrupar ventas por categorías esperadas del inventario
+  const expectedCategories = [
+    'skincare',
+    'maquillaje',
+    'uñas',
+    'depilacion',
+    'cuidado personal',
+    'otros'
+  ]
+
+  const normalize = (str) => {
+    return (str || '').toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // quitar marcas diacríticas
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  // Crear mapa inicial con categorías esperadas (clave normalizada)
   const salesByCategoryMap = {}
+  const displayNames = {}
+  expectedCategories.forEach(cat => {
+    const norm = normalize(cat)
+    salesByCategoryMap[norm] = 0
+    // mostrar con mayúscula inicial y tildes originales donde sea apropiado
+    displayNames[norm] = (cat === 'uñas') ? 'Uñas' : (cat === 'cuidado personal' ? 'Cuidado Personal' : (cat === 'depilacion' ? 'Depilación' : (cat.charAt(0).toUpperCase() + cat.slice(1))))
+  })
+
+  // Crear mapa de inventario por nombre para obtener categoría cuando no venga en el item
+  const inventoryMapByName = {}
+  if (Array.isArray(inventoryData)) {
+    inventoryData.forEach(inv => {
+      const name = (inv.nombre || inv.name || '').toString()
+      if (name) inventoryMapByName[name] = inv
+    })
+  }
+
   salesData.forEach(sale => {
     if (sale.items && Array.isArray(sale.items)) {
       sale.items.forEach(item => {
-        const category = item.categoria || item.categoriaProducto || item.categoriaVenta || 'Sin categoría'
-        const quantity = Number(item.cantidad || 1)
-        salesByCategoryMap[category] = (salesByCategoryMap[category] || 0) + quantity
+        // Intentar obtener categoría desde el item; si no existe, buscar en inventario por nombre
+        let rawCat = item.categoria || item.categoriaProducto || item.categoriaVenta || ''
+        if (!rawCat || rawCat === '') {
+          const itemName = item.nombre || item.name || ''
+          const inv = inventoryMapByName[itemName]
+          if (inv) {
+            rawCat = inv.categoria || inv.categoriaProducto || inv.categoria || ''
+          }
+        }
+        const qty = Number(item.cantidad || 1)
+        const normCat = normalize(rawCat)
+        if (normCat && salesByCategoryMap.hasOwnProperty(normCat)) {
+          salesByCategoryMap[normCat] += qty
+        } else {
+          // sumar a 'otros' cuando no coincide con las categorías esperadas
+          const otrosKey = normalize('otros')
+          salesByCategoryMap[otrosKey] = (salesByCategoryMap[otrosKey] || 0) + qty
+        }
       })
     }
   })
 
-  const salesByCategory = Object.entries(salesByCategoryMap).map(([category, sales]) => ({ category, sales }))
+  // DEBUG: imprimir categorías encontradas y mapeo (solo en desarrollo)
+  try {
+    const encountered = new Set()
+    salesData.forEach(s => {
+      if (s.items && Array.isArray(s.items)) {
+        s.items.forEach(it => encountered.add(it.categoria || it.categoriaProducto || it.categoriaVenta || ''))
+      }
+    })
+    console.debug('[reportsService] encounteredCategories:', Array.from(encountered))
+    console.debug('[reportsService] salesByCategoryMap:', salesByCategoryMap)
+  } catch (e) {
+    // no bloquear en caso de error de logging
+  }
+
+  const salesByCategory = Object.keys(salesByCategoryMap).map(key => ({ category: displayNames[key] || (key.charAt(0).toUpperCase() + key.slice(1)), sales: salesByCategoryMap[key] }))
     .sort((a, b) => b.sales - a.sales)
 
-  return {
-    totalSales,
-    totalRevenue,
-    averageTicket,
-    salesByDay
-    ,salesByCategory
+    return {
+      totalSales,
+      totalRevenue,
+      averageTicket,
+      salesByDay,
+      salesByCategory
+    }
+  } catch (err) {
+    console.error('[reportsService] calculateSalesMetrics error:', err)
+    return {
+      totalSales: 0,
+      totalRevenue: 0,
+      averageTicket: 0,
+      salesByDay: [
+        { day: 'Lun', sales: 0 },
+        { day: 'Mar', sales: 0 },
+        { day: 'Mié', sales: 0 },
+        { day: 'Jue', sales: 0 },
+        { day: 'Vie', sales: 0 },
+        { day: 'Sáb', sales: 0 },
+        { day: 'Dom', sales: 0 }
+      ],
+      salesByCategory: []
+    }
   }
 }
 
@@ -692,7 +780,7 @@ export const getFilteredReportsData = async (startDate, endDate) => {
 
 
     // Calcular métricas con datos filtrados
-    const salesMetrics = calculateSalesMetrics(filteredSales)
+    const salesMetrics = calculateSalesMetrics(filteredSales, inventoryData)
     const inventoryMetrics = await calculateInventoryMetrics(inventoryData, filteredSales, startDate)
     const expensesMetrics = calculateExpensesMetrics(filteredExpenses)
     const providersMetrics = calculateProvidersMetrics(providersData)

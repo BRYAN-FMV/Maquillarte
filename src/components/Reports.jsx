@@ -292,6 +292,36 @@ function Reports({ role = 'admin' }) {
           </div>
         )}
       </div>
+      
+      <div style={{ padding: '20px', borderTop: '1px solid #eee' }}>
+        <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Ventas por Categoría</h3>
+        {(!reportData.sales.salesByCategory || reportData.sales.salesByCategory.length === 0) ? (
+          <div style={{
+            padding: '20px',
+            textAlign: 'center',
+            background: '#f8f9fa',
+            borderRadius: '8px',
+            color: '#666'
+          }}>
+            <p>No hay ventas por categoría en el período seleccionado</p>
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '12px'
+          }}>
+            {reportData.sales.salesByCategory.map((c, i) => (
+              <div key={i} style={{ padding: '12px', background: '#f8f9fa', borderRadius: '8px', borderLeft: '4px solid #2196f3' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#2c3e50' }}>{c.category}</h4>
+                <p style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', color: '#2196f3' }}>
+                  {c.sales} {c.sales === 1 ? 'venta' : 'ventas'}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 
