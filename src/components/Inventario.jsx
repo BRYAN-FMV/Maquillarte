@@ -319,7 +319,7 @@ function Inventario({ userRole }) {
                 }}
               />
             </div>
-            {canAdd && userRole === 'admin' && (
+            {canAdd && (userRole === 'admin' || userRole === 'employee') && (
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Costo</label>
                 <input
