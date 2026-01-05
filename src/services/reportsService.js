@@ -27,28 +27,36 @@ export const getReportsData = async () => {
   }
 }
 
-// Función para obtener ventas de Firestore
+// Función para obtener ventas de Firestore - OPTIMIZADO
 const getSalesDataFromFirestore = async () => {
   try {
-    const ventasSnapshot = await getDocs(collection(db, 'ventaEnc'))
+    // Cargar ventas y detalles en paralelo (evita N+1 queries)
+    const [ventasSnapshot, detallesSnapshot] = await Promise.all([
+      getDocs(collection(db, 'ventaEnc')),
+      getDocs(collection(db, 'ventaDet'))
+    ])
     
-    const salesData = []
+    // Crear mapa de detalles por idVentaEnc
+    const detallesPorVenta = {}
+    detallesSnapshot.docs.forEach(doc => {
+      const data = doc.data()
+      const idVenta = data.idVentaEnc
+      if (!detallesPorVenta[idVenta]) {
+        detallesPorVenta[idVenta] = []
+      }
+      detallesPorVenta[idVenta].push(data)
+    })
     
-    for (const ventaDoc of ventasSnapshot.docs) {
+    // Mapear ventas con sus detalles
+    const salesData = ventasSnapshot.docs.map(ventaDoc => {
       const ventaData = { id: ventaDoc.id, ...ventaDoc.data() }
-      
-      // Obtener detalles de la venta
-      const detallesQuery = query(collection(db, 'ventaDet'), where('idVentaEnc', '==', ventaDoc.id))
-      const detallesSnapshot = await getDocs(detallesQuery)
-      const items = detallesSnapshot.docs.map(doc => doc.data())
-      
-      salesData.push({
+      return {
         ...ventaData,
         timestamp: ventaData.fechaHora,
         total: Number(ventaData.total || 0),
-        items: items
-      })
-    }
+        items: detallesPorVenta[ventaDoc.id] || []
+      }
+    })
     
     return salesData
   } catch (error) {
@@ -234,63 +242,55 @@ const calculateSalesMetrics = (salesData, inventoryData = []) => {
   }
 }
 
-// Calcular inventario inicial basado en ventas y compras desde una fecha específica
-const calculateInitialStock = async (productName, startDate, currentStock) => {
-  try {
-    // Obtener todas las ventas desde startDate hasta hoy
-    const ventasSnapshot = await getDocs(collection(db, 'ventaEnc'))
-    let totalVendido = 0
+// Calcular inventario inicial basado en ventas y compras desde una fecha específica - OPTIMIZADO
+// Ahora recibe los datos pre-cargados en lugar de hacer consultas
+const calculateInitialStockBatch = (salesData, comprasData, startDate) => {
+  // Calcular totales vendidos por producto desde startDate
+  const ventasPorProducto = {}
+  const start = new Date(startDate)
+  
+  salesData.forEach(sale => {
+    if (!sale.timestamp) return
+    const ventaDate = new Date(sale.timestamp)
+    if (ventaDate < start) return
     
-    for (const ventaDoc of ventasSnapshot.docs) {
-      const ventaData = ventaDoc.data()
-      if (!ventaData.fechaHora) continue
-      
-      const ventaDate = new Date(ventaData.fechaHora)
-      const start = new Date(startDate)
-      if (ventaDate < start) continue
-      
-      // Obtener detalles de la venta
-      const detallesQuery = query(collection(db, 'ventaDet'), where('idVentaEnc', '==', ventaDoc.id))
-      const detallesSnapshot = await getDocs(detallesQuery)
-      
-      detallesSnapshot.docs.forEach(detDoc => {
-        const item = detDoc.data()
-        if (item.nombre === productName) {
-          totalVendido += Number(item.cantidad || 0)
+    if (sale.items && Array.isArray(sale.items)) {
+      sale.items.forEach(item => {
+        const nombre = item.nombre || ''
+        if (nombre) {
+          ventasPorProducto[nombre] = (ventasPorProducto[nombre] || 0) + Number(item.cantidad || 0)
         }
       })
     }
+  })
+  
+  // Calcular totales comprados por producto desde startDate
+  const comprasPorProducto = {}
+  
+  comprasData.forEach(compra => {
+    if (!compra.fechaHora) return
+    const compraDate = new Date(compra.fechaHora)
+    if (compraDate < start) return
     
-    // Obtener compras desde startDate hasta hoy
-    const comprasSnapshot = await getDocs(collection(db, 'compras'))
-    let totalComprado = 0
-    
-    comprasSnapshot.docs.forEach(compraDoc => {
-      const compraData = compraDoc.data()
-      if (!compraData.fechaHora) return
-      
-      const compraDate = new Date(compraData.fechaHora)
-      const start = new Date(startDate)
-      if (compraDate < start) return
-      
-      const productos = compraData.productos || []
-      productos.forEach(prod => {
-        if (prod.nombre === productName) {
-          totalComprado += Number(prod.cantidad || 0)
-        }
-      })
+    const productos = compra.productos || []
+    productos.forEach(prod => {
+      const nombre = prod.nombre || ''
+      if (nombre) {
+        comprasPorProducto[nombre] = (comprasPorProducto[nombre] || 0) + Number(prod.cantidad || 0)
+      }
     })
-    
-    // Stock inicial = Stock actual - Compras desde fecha + Ventas desde fecha
-    const stockInicial = currentStock - totalComprado + totalVendido
-    return Math.max(0, stockInicial) // No puede ser negativo
-  } catch (error) {
-    console.warn(`Error calculando stock inicial para ${productName}:`, error)
-    return 0
-  }
+  })
+  
+  return { ventasPorProducto, comprasPorProducto }
 }
 
-const calculateInventoryMetrics = async (inventoryData, salesData, startDate = null) => {
+// Función legacy para compatibilidad (sin usar, deprecada)
+const calculateInitialStock = async (productName, startDate, currentStock) => {
+  // Esta función ya no se usa, pero se mantiene por compatibilidad
+  return 0
+}
+
+const calculateInventoryMetrics = async (inventoryData, salesData, startDate = null, comprasData = null) => {
   if (!inventoryData || inventoryData.length === 0) {
     return {
       totalProducts: 0,
@@ -343,14 +343,27 @@ const calculateInventoryMetrics = async (inventoryData, salesData, startDate = n
     ...Object.keys(productSales)
   ])
 
-  const topProductsPromises = Array.from(allProductNames).map(async (name) => {
+  // Calcular stock inicial en batch (una sola vez para todos los productos)
+  let ventasPorProducto = {}
+  let comprasPorProducto = {}
+  if (startDate && comprasData) {
+    const stockBatch = calculateInitialStockBatch(salesData, comprasData, startDate)
+    ventasPorProducto = stockBatch.ventasPorProducto
+    comprasPorProducto = stockBatch.comprasPorProducto
+  }
+
+  // Mapear productos de forma síncrona (ya no hacemos consultas async por producto)
+  const topProductsWithStock = Array.from(allProductNames).map(name => {
     const sales = productSales[name] || 0
     const inventoryProduct = productInventoryMap[name]
     const currentStock = inventoryProduct ? Number(inventoryProduct.quantity || inventoryProduct.stock || 0) : 0
 
     let stockInicial = 0
     if (startDate && inventoryProduct) {
-      stockInicial = await calculateInitialStock(name, startDate, currentStock)
+      // Stock inicial = Stock actual - Compras desde fecha + Ventas desde fecha
+      const totalVendido = ventasPorProducto[name] || 0
+      const totalComprado = comprasPorProducto[name] || 0
+      stockInicial = Math.max(0, currentStock - totalComprado + totalVendido)
     }
 
     return {
@@ -362,7 +375,6 @@ const calculateInventoryMetrics = async (inventoryData, salesData, startDate = n
     }
   })
   
-  const topProductsWithStock = await Promise.all(topProductsPromises)
   // Ordenar todos los productos por ventas (desc)
   const sortedAll = topProductsWithStock.sort((a, b) => b.sales - a.sales)
   const topProductsAll = sortedAll.slice() // copia de todos
@@ -370,13 +382,15 @@ const calculateInventoryMetrics = async (inventoryData, salesData, startDate = n
 
   // Si no hay ventas en topProductsAll, construir fallback con todo el inventario
   if (topProductsAll.length === 0) {
-    const fallbackPromises = inventoryData.map(async product => {
+    const fallbackProducts = inventoryData.map(product => {
       const name = product.nombre || product.name || 'Producto sin nombre'
       const currentStock = Number(product.quantity || product.stock || 0)
       let stockInicial = 0
       
       if (startDate) {
-        stockInicial = await calculateInitialStock(name, startDate, currentStock)
+        const totalVendido = ventasPorProducto[name] || 0
+        const totalComprado = comprasPorProducto[name] || 0
+        stockInicial = Math.max(0, currentStock - totalComprado + totalVendido)
       }
       
       return {
@@ -387,13 +401,12 @@ const calculateInventoryMetrics = async (inventoryData, salesData, startDate = n
         precio: Number(product.precio || 0)
       }
     })
-    const fallbackProductsAll = await Promise.all(fallbackPromises)
     return {
       totalProducts,
       lowStock,
       outOfStock,
-      topProducts: fallbackProductsAll.slice(0,5),
-      topProductsAll: fallbackProductsAll
+      topProducts: fallbackProducts.slice(0, 5),
+      topProductsAll: fallbackProducts
     }
   }
 
@@ -442,44 +455,63 @@ const getExpensesDataFromFirestore = async () => {
   }
 }
 
-// Obtener proveedores de Firestore con sus productos y compras
+// Obtener proveedores de Firestore con sus productos y compras - OPTIMIZADO
 const getProvidersDataFromFirestore = async () => {
   try {
-    const proveedoresSnapshot = await getDocs(collection(db, 'proveedores'))
-    const providers = []
+    // Cargar todo en paralelo (evita N+1 queries)
+    const [proveedoresSnapshot, productosSnapshot, comprasSnapshot] = await Promise.all([
+      getDocs(collection(db, 'proveedores')),
+      getDocs(collection(db, 'proveedorProductos')),
+      getDocs(collection(db, 'compras'))
+    ])
     
-    for (const provDoc of proveedoresSnapshot.docs) {
+    // Crear mapa de productos por idProveedor
+    const productosPorProveedor = {}
+    productosSnapshot.docs.forEach(doc => {
+      const data = doc.data()
+      const idProv = data.idProveedor
+      if (!productosPorProveedor[idProv]) {
+        productosPorProveedor[idProv] = []
+      }
+      productosPorProveedor[idProv].push({
+        id: doc.id,
+        ...data,
+        costo: Number(data.costo || 0),
+        precio: Number(data.precio || 0),
+        cantidad: Number(data.cantidad || 0)
+      })
+    })
+    
+    // Crear mapa de compras por idProveedor
+    const comprasPorProveedor = {}
+    comprasSnapshot.docs.forEach(doc => {
+      const data = doc.data()
+      const idProv = data.idProveedor
+      if (!comprasPorProveedor[idProv]) {
+        comprasPorProveedor[idProv] = []
+      }
+      comprasPorProveedor[idProv].push({
+        id: doc.id,
+        ...data,
+        total: Number(data.total || 0)
+      })
+    })
+    
+    // Mapear proveedores con sus datos relacionados
+    const providers = proveedoresSnapshot.docs.map(provDoc => {
       const provData = { id: provDoc.id, ...provDoc.data() }
+      const productos = productosPorProveedor[provDoc.id] || []
+      const compras = comprasPorProveedor[provDoc.id] || []
       
-      // Obtener productos del proveedor
-      const productosQuery = query(collection(db, 'proveedorProductos'), where('idProveedor', '==', provDoc.id))
-      const productosSnapshot = await getDocs(productosQuery)
-      const productos = productosSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        costo: Number(doc.data().costo || 0),
-        precio: Number(doc.data().precio || 0),
-        cantidad: Number(doc.data().cantidad || 0)
-      }))
-      
-      // Obtener compras del proveedor
-      const comprasQuery = query(collection(db, 'compras'), where('idProveedor', '==', provDoc.id))
-      const comprasSnapshot = await getDocs(comprasQuery)
-      const compras = comprasSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        total: Number(doc.data().total || 0)
-      }))
-      
-      providers.push({
+      return {
         ...provData,
         productos: productos,
         compras: compras,
         totalProductos: productos.length,
         totalCompras: compras.length,
         montoTotalCompras: compras.reduce((sum, c) => sum + (c.total || 0), 0)
-      })
-    }
+      }
+    })
     
     return providers
   } catch (error) {
@@ -732,25 +764,24 @@ const calculateProfitabilityMetrics = (salesData, providersData, inventoryData) 
   }
 }
 
-// Función para filtrar datos por rango de fechas
+// Función para filtrar datos por rango de fechas - OPTIMIZADO
 export const getFilteredReportsData = async (startDate, endDate) => {
   try {
     
-    // Obtener todas las ventas de Firestore
-    const allSalesData = await getSalesDataFromFirestore()
-    
-    // Obtener datos de inventario de Firestore
-    const inventoryData = await getInventoryDataFromFirestore()
+    // Cargar todos los datos en paralelo (gran mejora de rendimiento)
+    const [allSalesData, inventoryData, allExpensesData, providersData, comprasSnapshot] = await Promise.all([
+      getSalesDataFromFirestore(),
+      getInventoryDataFromFirestore(),
+      getExpensesDataFromFirestore(),
+      getProvidersDataFromFirestore(),
+      getDocs(collection(db, 'compras')) // Para calcular stock inicial
+    ])
 
-    // Obtener datos de gastos de Firestore
-    const allExpensesData = await getExpensesDataFromFirestore()
-
-    // Obtener datos de proveedores de Firestore
-    const providersData = await getProvidersDataFromFirestore()
-
-    // Filtrar ventas por fecha - comparación simple de strings YYYY-MM-DD
-
-    // Los gastos ya incluyen las compras registradas, no necesitamos duplicarlas
+    // Procesar compras para calculateInventoryMetrics
+    const comprasData = comprasSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
 
     // Filtrar ventas por fecha usando la fecha local (YYYY-MM-DD)
     const filteredSales = allSalesData.filter(sale => {
@@ -776,12 +807,9 @@ export const getFilteredReportsData = async (startDate, endDate) => {
       return expenseDateString >= startDate && expenseDateString <= endDate
     })
 
-
-
-
-    // Calcular métricas con datos filtrados
+    // Calcular métricas con datos filtrados (pasar comprasData para stock inicial)
     const salesMetrics = calculateSalesMetrics(filteredSales, inventoryData)
-    const inventoryMetrics = await calculateInventoryMetrics(inventoryData, filteredSales, startDate)
+    const inventoryMetrics = await calculateInventoryMetrics(inventoryData, filteredSales, startDate, comprasData)
     const expensesMetrics = calculateExpensesMetrics(filteredExpenses)
     const providersMetrics = calculateProvidersMetrics(providersData)
     const profitabilityMetrics = calculateProfitabilityMetrics(filteredSales, providersData, inventoryData)
