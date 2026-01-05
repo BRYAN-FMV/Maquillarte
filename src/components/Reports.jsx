@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FaFileAlt, FaDownload, FaCalendarAlt, FaChartBar, FaDollarSign, FaBox, FaUsers, FaShoppingBag, FaTruck } from 'react-icons/fa'
+import { FaFileAlt, FaDownload, FaCalendarAlt, FaChartBar, FaDollarSign, FaBox, FaUsers, FaShoppingBag, FaTruck, FaSearch } from 'react-icons/fa'
 import { getReportsData, getFilteredReportsData, exportReportData } from '../services/reportsService'
 
 function Reports({ role = 'admin' }) {
@@ -36,6 +36,7 @@ function Reports({ role = 'admin' }) {
   })
   const [loading, setLoading] = useState(false)
   const [selectedExpenseCategories, setSelectedExpenseCategories] = useState([])
+  const [topProductsSearch, setTopProductsSearch] = useState('')
 
   // Categorías de gastos esperadas (fallback) — las que enviaste: Operativos, Inventario, Marketing, Personal, Otros
   const fallbackExpenseCategories = ['Operativos', 'Inventario', 'Marketing', 'Personal', 'Otros']
@@ -430,70 +431,130 @@ function Reports({ role = 'admin' }) {
       </div>
 
       <div style={{ padding: '20px', borderTop: '1px solid #eee' }}>
-        <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>Productos Más Vendidos</h3>
-        {reportData.inventory.topProducts.length === 0 ? (
-          <div style={{
-            padding: '40px',
-            textAlign: 'center',
-            background: '#f8f9fa',
-            borderRadius: '10px',
-            color: '#666'
-          }}>
-            <FaBox style={{ fontSize: '3rem', color: '#ddd', marginBottom: '15px' }} />
-            <p>No hay datos de productos vendidos</p>
-            <p style={{ fontSize: '14px' }}>Realiza ventas para ver los productos más populares</p>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: '20px',
+          flexWrap: 'wrap',
+          gap: '15px'
+        }}>
+          <h3 style={{ margin: 0, color: '#2c3e50' }}>Productos Más Vendidos</h3>
+          <div style={{ position: 'relative', minWidth: '200px', flex: '0 1 300px' }}>
+            <FaSearch style={{
+              position: 'absolute',
+              left: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#999',
+              fontSize: '14px'
+            }} />
+            <input
+              type="text"
+              placeholder="Buscar en todos los productos..."
+              value={topProductsSearch}
+              onChange={(e) => setTopProductsSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 12px 10px 38px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '14px',
+                outline: 'none',
+                transition: 'border-color 0.2s',
+                boxSizing: 'border-box'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#e91e63'}
+              onBlur={(e) => e.target.style.borderColor = '#ddd'}
+            />
           </div>
-        ) : (
-          <div style={{
-            background: '#f8f9fa',
-            borderRadius: '10px',
-            overflow: 'hidden'
-          }}>
-            {reportData.inventory.topProducts.map((product, index) => (
-              <div key={index} style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '15px 20px',
-                borderBottom: index < reportData.inventory.topProducts.length - 1 ? '1px solid #eee' : 'none'
+        </div>
+        {(() => {
+          // Usar topProductsAll cuando hay búsqueda, topProducts (top 5) cuando no hay búsqueda
+          const allProducts = reportData.inventory.topProductsAll || reportData.inventory.topProducts || []
+          const productsToShow = topProductsSearch.trim() 
+            ? allProducts.filter(product => product.name.toLowerCase().includes(topProductsSearch.toLowerCase()))
+            : (reportData.inventory.topProducts || [])
+          
+          if (productsToShow.length === 0) {
+            return (
+              <div style={{
+                padding: '40px',
+                textAlign: 'center',
+                background: '#f8f9fa',
+                borderRadius: '10px',
+                color: '#666'
               }}>
-                <span style={{
-                  background: '#e91e63',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: '30px',
-                  height: '30px',
+                <FaBox style={{ fontSize: '3rem', color: '#ddd', marginBottom: '15px' }} />
+                {allProducts.length === 0 ? (
+                  <>
+                    <p>No hay datos de productos vendidos</p>
+                    <p style={{ fontSize: '14px' }}>Realiza ventas para ver los productos más populares</p>
+                  </>
+                ) : (
+                  <>
+                    <p>No se encontraron productos</p>
+                    <p style={{ fontSize: '14px' }}>Intenta con otro término de búsqueda</p>
+                  </>
+                )}
+              </div>
+            )
+          }
+          
+          return (
+            <div style={{
+              background: '#f8f9fa',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              maxHeight: topProductsSearch.trim() ? '400px' : 'none',
+              overflowY: topProductsSearch.trim() ? 'auto' : 'visible'
+            }}>
+              {productsToShow.map((product, index, arr) => (
+                <div key={index} style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  marginRight: '15px'
-                }}>#{index + 1}</span>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ color: '#2c3e50', fontWeight: '500', marginBottom: '4px' }}>
-                    {product.name}
-                  </span>
-                  {product.stockInicial !== undefined && (
-                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#666' }}>
-                      <span>Stock inicial: {product.stockInicial}</span>
-                      <span>Stock actual: {product.stockActual}</span>
-                    </div>
-                  )}
-                </div>
-                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                  <span style={{ color: '#e91e63', fontWeight: 'bold', fontSize: '16px' }}>
-                    {product.sales} {product.sales === 1 ? 'venta' : 'ventas'}
-                  </span>
-                  {product.precio > 0 && (
-                    <span style={{ color: '#666', fontSize: '12px' }}>
-                      ${product.precio.toLocaleString()}
+                  padding: '15px 20px',
+                  borderBottom: index < arr.length - 1 ? '1px solid #eee' : 'none'
+                }}>
+                  <span style={{
+                    background: '#e91e63',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: '30px',
+                    height: '30px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    marginRight: '15px'
+                  }}>#{index + 1}</span>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ color: '#2c3e50', fontWeight: '500', marginBottom: '4px' }}>
+                      {product.name}
                     </span>
-                  )}
+                    {product.stockInicial !== undefined && (
+                      <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#666' }}>
+                        <span>Stock inicial: {product.stockInicial}</span>
+                        <span>Stock actual: {product.stockActual}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <span style={{ color: '#e91e63', fontWeight: 'bold', fontSize: '16px' }}>
+                      {product.sales} {product.sales === 1 ? 'venta' : 'ventas'}
+                    </span>
+                    {product.precio > 0 && (
+                      <span style={{ color: '#666', fontSize: '12px' }}>
+                        ${product.precio.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
